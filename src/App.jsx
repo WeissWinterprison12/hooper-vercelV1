@@ -13,7 +13,7 @@ import Register from "./Pages/Register";
 import Privacy from "./Pages/Privacy";
 import Terms from "./Pages/Terms";
 import Pr from "./Pages/Pr";
-import Contact from "./Pages/Contact";
+import Contact from "./Pages/contact";
 
 import BuyerHome from "./Pages/Buyer_home";
 import BuyerShop from "./Pages/Buyer_shop";
