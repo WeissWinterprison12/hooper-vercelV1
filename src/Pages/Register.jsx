@@ -1,40 +1,37 @@
+// register.jsx - OPTION A: Simple Registration (no extra fields)
 import React, { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import logo from "../Images/HoopersFits.png";
 import heroBg from "../Images/sapatos.jpg";
 import facebookIcon from "../Images/facebook.png";
 import instagramIcon from "../Images/Instagram.png";
 
 const Register = () => {
+  const navigate = useNavigate();
   const registerBoxRef = useRef(null);
   const [errors, setErrors] = useState({});
-  const [securityQuestions] = useState([
-    "What is the name of your first pet?",
-    "What is your mother's maiden name?",
-    "What is the name of your father?",
-    "What is the name of your first school?",
-    "What city were you born in?",
-    "What is your favorite childhood book?"
-  ]);
-  const [selectedQuestion, setSelectedQuestion] = useState(securityQuestions[0]);
 
   const usernameRegex = /^(?=.*[A-Z])[A-Za-z0-9]{6,15}$/;
 
   const goLogin = () => {
-    registerBoxRef.current.classList.add("slide-out");
-    setTimeout(() => {
-      window.location.href = "/login";
-    }, 600);
+    if (registerBoxRef.current) {
+      registerBoxRef.current.classList.add("slide-out");
+      setTimeout(() => {
+        navigate("/login");
+      }, 600);
+    } else {
+      navigate("/login");
+    }
   };
 
-  const validate = (username, password, confirmPassword, contact, securityAnswer) => {
+  const validate = (username, password, confirmPassword) => {
     let newErrors = {};
 
     if (!usernameRegex.test(username)) {
       if (/[^A-Za-z0-9]/.test(username)) {
         newErrors.username = "No special characters allowed.";
       } else if (!/[A-Z]/.test(username)) {
-        newErrors.username =
-          "Username must contain at least one uppercase letter.";
+        newErrors.username = "Username must contain at least one uppercase letter.";
       } else {
         newErrors.username = "Username must be 6-15 characters.";
       }
@@ -47,8 +44,7 @@ const Register = () => {
       newErrors.password = "No special characters allowed.";
     } 
     else if (/^\d+$/.test(password)) {
-      newErrors.password =
-        "Password should contain uppercase and lowercase letters";
+      newErrors.password = "Password should contain uppercase and lowercase letters";
     } 
     else if (!/[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password)) {
       newErrors.password = "Password should contain lowercase letters";
@@ -58,14 +54,6 @@ const Register = () => {
     } 
     else if (!/\d/.test(password)) {
       newErrors.password = "Password should contain numerical digits";
-    }
-
-    if (!/^\d{11}$/.test(contact)) {
-      newErrors.contact = "Contact number must be exactly 11 digits.";
-    }
-
-    if (securityAnswer.trim().length < 2) {
-      newErrors.securityAnswer = "Security answer must be at least 2 characters.";
     }
 
     if (newErrors.password) {
@@ -78,53 +66,53 @@ const Register = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // =====================================================
+  // 🔥 handleRegister - Simple OPTION A
+  // =====================================================
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    const username = e.target.username.value;
-    const address = e.target.Address.value;
-    const email = e.target.email.value;
+    const username = e.target.username.value.trim();
+    const email = e.target.email.value.trim();
     const password = e.target.password.value;
     const confirmPassword = e.target.confirmPassword.value;
-    const contact = e.target.contact.value;
-    const securityAnswer = e.target.securityAnswer.value;
 
-    if (!validate(username, password, confirmPassword, contact, securityAnswer)) return;
+    if (!validate(username, password, confirmPassword)) return;
 
     try {
-      const response = await fetch(
-        "http://localhost/hooper_fits_api/register.php",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username,
-            address,
-            email,
-            password,
-            contact,
-            security_question: selectedQuestion,
-            security_answer: securityAnswer,
-          }),
-        }
-      );
+      // ✅ SIMPLE: Only send username, email, password, role
+      const response = await fetch("http://localhost:5000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          role: "buyer" // Default role
+        }),
+      });
 
       const data = await response.json();
+      console.log("🔍 Registration response:", data);
 
-      if (data.status === "success") {
+      if (response.ok) {
         alert("Registration Successful!");
-        registerBoxRef.current.classList.add("slide-out");
+        
+        if (registerBoxRef.current) {
+          registerBoxRef.current.classList.add("slide-out");
+        }
+        
         setTimeout(() => {
-          window.location.href = "/login";
+          navigate("/login");
         }, 600);
       } else {
-        alert(data.message);
+        alert(data.message || "Registration failed");
       }
     } catch (error) {
       console.error(error);
-      alert("Server error");
+      alert("Server error - is backend running on port 5000?");
     }
   };
 
@@ -185,7 +173,6 @@ const Register = () => {
 
         .register-section {
           width: 360px;
-          height: 360px;  /* ← CHANGE BACK TO 360px */
           background: rgba(255,255,255,0.95);
           color: #333;
           border-radius: 12px;
@@ -194,8 +181,10 @@ const Register = () => {
           display: flex;
           flex-direction: column;
           transition: all 0.4s ease;
-          overflow: hidden;  /* ← ADD THIS to hide scrollbar */
+          overflow: hidden;
         }
+
+        .form-scroll { flex: 1; overflow-y: auto; padding-right: 5px; max-height: 350px; }
 
         .login-tabs { display: flex; justify-content: space-around; margin-bottom: 10px; }
         .login-tabs button {
@@ -208,18 +197,15 @@ const Register = () => {
         }
         .login-tabs button.active { border-color: #dc3545; color: #dc3545; font-weight: 600; }
 
-        .form-scroll { flex: 1; overflow-y: auto; padding-right: 5px; }
-
         .form-group { margin-bottom: 15px; }
         .form-group label { font-size: 14px; display: block; margin-bottom: 5px; font-weight: 500; }
-        .form-group input, .form-group select { 
+        .form-group input { 
           width: 100%; 
           padding: 10px; 
           border: 1px solid #ddd; 
           border-radius: 4px; 
           font-size: 14px;
         }
-        .form-group select { cursor: pointer; }
 
         .login-button {
           width: 100%;
@@ -259,18 +245,10 @@ const Register = () => {
         .error-text { color: red; font-size: 12px; margin-top: 3px; }
 
         .tooltip { margin-left: 6px; cursor: pointer; color: #555; font-weight: bold; }
-        .security-info { 
-          background: #f8f9fa; 
-          padding: 8px; 
-          border-radius: 6px; 
-          font-size: 12px; 
-          color: #666; 
-          margin-bottom: 10px;
-        }
 
         @media (max-width: 900px) {
           .hero-content { flex-direction: column; text-align: center; }
-          .register-section { margin-top: 30px; }
+          .register-section { margin-top: 30px; width: 90%; max-width: 360px; }
         }
       `}</style>
 
@@ -305,24 +283,6 @@ const Register = () => {
               </div>
 
               <div className="form-group">
-                <label>Address</label>
-                <input name="Address" type="text" required />
-              </div>
-
-              <div className="form-group">
-                <label>Contact Number<span className="tooltip" title="exactly 11 digits">?</span></label>
-                <input
-                  name="contact"
-                  type="text"
-                  maxLength={11}
-                  onInput={(e) => (e.target.value = e.target.value.replace(/\D/g, ""))}
-                  className={errors.contact ? "error-input" : ""}
-                  required
-                />
-                {errors.contact && <div className="error-text">{errors.contact}</div>}
-              </div>
-
-              <div className="form-group">
                 <label>Email</label>
                 <input name="email" type="email" required />
               </div>
@@ -339,32 +299,7 @@ const Register = () => {
                 {errors.confirmPassword && <div className="error-text">{errors.confirmPassword}</div>}
               </div>
 
-              {/* NEW SECURITY QUESTION SECTION */}
-              <div className="form-group">
-                <label>Security Question<span className="tooltip" title="Choose one question to help recover your account">?</span></label>
-                <select 
-                  value={selectedQuestion} 
-                  onChange={(e) => setSelectedQuestion(e.target.value)}
-                  style={{marginBottom: '5px'}}
-                >
-                  {securityQuestions.map((question, index) => (
-                    <option key={index} value={question}>{question}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Security Answer</label>
-                <input 
-                  name="securityAnswer" 
-                  type="text" 
-                  className={errors.securityAnswer ? "error-input" : ""} 
-                  required 
-                />
-                {errors.securityAnswer && <div className="error-text">{errors.securityAnswer}</div>}
-              </div>
-
-              <button className="login-button">Register</button>
+              <button type="submit" className="login-button">Register</button>
             </form>
           </div>
         </div>
