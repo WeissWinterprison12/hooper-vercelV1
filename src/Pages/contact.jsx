@@ -9,7 +9,7 @@ import facebookIcon from "../Images/facebook.png";
 import instagramIcon from "../Images/Instagram.png";
 import defaultAvatar from "../Images/Man.png";
 
-import "../components/Contact.css";
+import "../components/contact.css";
 
 const Contact = () => {
   const { user, logout } = useAuth();
