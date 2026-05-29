@@ -1,10 +1,12 @@
-// buyer_dashboard.jsx - FIXED: Loading logic
+// buyer_dashboard.jsx - FIXED for MongoDB Backend
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import logo from "../Images/HoopersFits.png";
 import defaultAvatar from "../Images/Man.png";
 import "../components/buyer_dashboard.css";
+
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
 
 const BuyerDashboard = () => {
   const { logout } = useAuth();
@@ -15,7 +17,6 @@ const BuyerDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
   
-
   const fileInputRef = useRef(null);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -29,14 +30,13 @@ const BuyerDashboard = () => {
     avatar: defaultAvatar
   });
 
-  // ✅ FIXED: Single useEffect that handles everything
+  // Initialize dashboard
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
         const sessionStr = localStorage.getItem("buyer_session");
 
         if (!sessionStr) {
-          console.log("❌ No session, redirecting to login");
           navigate("/login");
           return;
         }
@@ -45,7 +45,6 @@ const BuyerDashboard = () => {
         console.log("🔍 Session:", session);
 
         if (session.role !== "buyer" || !session.id) {
-          console.log("❌ Invalid session, redirecting to login");
           navigate("/login");
           return;
         }
@@ -53,7 +52,6 @@ const BuyerDashboard = () => {
         const userId = session.id;
         setBuyerId(userId);
         
-        // Fetch profile and orders
         await fetchProfile(userId);
         await fetchOrders(userId);
         
@@ -68,38 +66,44 @@ const BuyerDashboard = () => {
     initializeDashboard();
   }, [navigate]);
 
-    const fetchProfile = async (id) => {
+  // Fetch Profile from MongoDB
+  const fetchProfile = async (id) => {
     try {
-      const response = await fetch(`http://localhost/hooper_fits_api/get_buyer_profile.php?id=${id}`);
+      const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch profile");
+      }
+      
       const data = await response.json();
-
       console.log("📡 Profile data:", data);
 
-      if (!data.error) {
-        // ✅ FIX: Build full URL path
-        let avatarUrl = defaultAvatar;
-        
-        if (data.profile_image && data.profile_image !== 'default-avatar.png') {
-          avatarUrl = `http://localhost/hooper_fits_api/uploads/profiles/${data.profile_image}`;
-        }
-          
-        setProfile({
-          name: data.name || "",
-          avatar: avatarUrl
-        });
-        setEditedName(data.name || "");
+      let avatarUrl = defaultAvatar;
+      
+      if (data.profile_image) {
+        avatarUrl = data.profile_image.startsWith("http") 
+          ? data.profile_image 
+          : `${BACKEND_URL}/uploads/profiles/${data.profile_image}`;
       }
+          
+      setProfile({
+        name: data.username || "",
+        avatar: avatarUrl
+      });
+      setEditedName(data.username || "");
+      
     } catch (err) {
       console.error("❌ Error fetching profile:", err);
+      setProfile({ name: "", avatar: defaultAvatar });
     }
   };
 
-  // --- FETCH ORDERS ---
+  // Fetch Orders from MongoDB
   const fetchOrders = async (id) => {
     try {
-      console.log("📡 Fetching orders for:", id);
+      console.log("📡 Fetching orders for buyer:", id);
       
-      const response = await fetch(`http://localhost/hooper_fits_api/get_orders.php?buyer_id=${id}`);
+      const response = await fetch(`${BACKEND_URL}/api/orders/buyer/${id}`);
       const data = await response.json();
       
       console.log("📡 Orders response:", data);
@@ -108,7 +112,7 @@ const BuyerDashboard = () => {
         setOrders(data.orders);
         
         const total = data.orders.reduce((sum, order) => {
-          return sum + Number(order.calculated_total || order.total_amount || 0);
+          return sum + Number(order.total_amount || 0);
         }, 0);
         
         setTotalSpending(total);
@@ -118,16 +122,19 @@ const BuyerDashboard = () => {
       }
     } catch (error) {
       console.error('❌ Error fetching orders:', error);
+      setOrders([]);
+      setTotalSpending(0);
     }
   };
 
   const handleLogout = () => {
     console.log('🚪 Logging out...');
     logout();
+    localStorage.removeItem("buyer_session");
     navigate("/login");
   };
 
-    // --- FILE SELECT ---
+  // File Select
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     console.log("📁 File selected:", file);
@@ -137,7 +144,6 @@ const BuyerDashboard = () => {
 
       const reader = new FileReader();
       reader.onload = (event) => {
-        console.log("📡 FileReader result:", event.target.result.substring(0, 50) + "...");
         setPreviewImage(event.target.result);
       };
       reader.onerror = (error) => {
@@ -161,32 +167,27 @@ const BuyerDashboard = () => {
     setEditedName(profile.name);
   }, [profile.name]);
 
-    const handleSaveProfile = useCallback(async () => {
+  // Save Profile to MongoDB
+  const handleSaveProfile = useCallback(async () => {
     if (!buyerId) return;
 
     const newName = editedName && editedName.trim() ? editedName.trim() : profile.name;
-    const newAvatar = previewImage || "";
 
     try {
-      const response = await fetch("http://localhost/hooper_fits_api/update_buyer_profile.php", {
-        method: "POST",
+      const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: buyerId,
-          name: newName,
-          profile_image: newAvatar
+          username: newName,
+          profile_image: previewImage || ""
         })
       });
 
       const result = await response.json();
       console.log("📡 Save result:", result);
 
-      if (result.status === "success") {
-        let newAvatarUrl = profile.avatar;
-        
-        if (previewImage) {
-          newAvatarUrl = previewImage;
-        }
+      if (result) {
+        const newAvatarUrl = previewImage || profile.avatar;
         
         setProfile({
           ...profile,
@@ -195,9 +196,12 @@ const BuyerDashboard = () => {
         });
         
         await fetchProfile(buyerId);
+        
+        alert("Profile updated successfully!");
       }
     } catch (err) {
       console.error("❌ Save error:", err);
+      alert("Failed to update profile. Please try again.");
     }
 
     setShowProfileModal(false);
@@ -234,59 +238,33 @@ const BuyerDashboard = () => {
   }
 
   return (
-    // ... your existing JSX stays the same ...
     <div className="buyer-dashboard-app">
+      {/* PROFILE MODAL */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfile}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-modal" onClick={handleCancelProfile} type="button">×</button>
             
-                        <div 
-              className="modal-image-upload" 
-              onClick={openFileExplorer}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  openFileExplorer();
-                }
-              }}
-            >
+            <div className="modal-image-upload" onClick={openFileExplorer}>
               {(previewImage || profile.avatar) ? (
-                <img 
-                  src={previewImage || profile.avatar} 
-                  alt="Preview" 
-                  style={{
-                    width: '100%', 
-                    height: '100%', 
-                    borderRadius: '50%', 
-                    objectFit: 'cover'
-                  }}
-                  onError={(e) => {
-                    console.log("❌ Image load error");
-                    e.target.style.display = 'none';
-                    e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>';
-                  }}
-                />
+                <img src={previewImage || profile.avatar} alt="Preview" style={{
+                  width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'
+                }} onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>';
+                }}/>
               ) : (
                 <div className="question-mark-avatar">?</div>
               )}
               
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                accept="image/*"
-                onChange={handleFileSelect}
-                style={{ display: 'none' }}
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
             </div>
             
             <h2 className="modal-title">Update Profile</h2>
             <p className="modal-subtitle">Click avatar to change profile image</p>
             
             <input type="text" value={editedName} onChange={handleNameChange} className="profile-name-input"
-              placeholder="Enter your display name" autoComplete="off"/>
+              placeholder="Enter your display name" autoComplete="off" />
 
             <button className="get-image-btn" onClick={handleSaveProfile} type="button">💾 Save Changes</button>
             <button className="cancel-btn" onClick={handleCancelProfile} type="button">❌ Cancel</button>
@@ -294,16 +272,20 @@ const BuyerDashboard = () => {
         </div>
       )}
 
+      {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
-          <div className="profile-avatar" onClick={() => setShowProfileModal(true)} title="Click to edit profile">
+          <div className="profile-avatar" onClick={() => setShowProfileModal(true)}>
             {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
-              <img src={getDisplayAvatar()} alt="Profile" onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>'; }}/>
+              <img src={getDisplayAvatar()} alt="Profile" onError={(e) => { 
+                e.target.style.display = 'none'; 
+                e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>'; 
+              }}/>
             ) : (
               <div className="question-mark-avatar">?</div>
             )}
           </div>
-          <p className="profile-name">{getDisplayName() || "Set your name"}</p>
+          <p className="profile-name">{getDisplayName()}</p>
         </div>
         
         <ul>
@@ -317,12 +299,13 @@ const BuyerDashboard = () => {
         </ul>
 
         <div className="sidebar-logo">
-          <a onClick={() => navigate("/buyer_home")} style={{cursor: 'pointer'}}>
+          <a onClick={() => navigate("/buyer_home")}>
             <img src={logo} alt="Hoopers Fits Logo" />
           </a>
         </div>
       </div>
 
+      {/* MAIN CONTENT */}
       <div className="main">
         <div className="top-bar"><h1>Dashboard Overview</h1></div>
 
@@ -343,7 +326,9 @@ const BuyerDashboard = () => {
             <div className="stat-card">
               <p>🔥 Recent Purchases</p>
               <ol>
-                {orders.length > 0 ? orders.slice(0, 3).map(order => (<li key={order.id}>{order.product_display || 'Various Items'}</li>)) : (<li>No recent purchases</li>)}
+                {orders.length > 0 ? orders.slice(0, 3).map(order => (
+                  <li key={order._id}>Order #{order._id?.slice(-6)}</li>
+                )) : (<li>No recent purchases</li>)}
               </ol>
             </div>
           </div>
@@ -359,17 +344,33 @@ const BuyerDashboard = () => {
             <div className="orders">
               <h4>📦 Recent Orders</h4>
               <table>
-                <thead><tr><th>Product</th><th>Date</th><th>Price</th><th>Payment</th><th>Status</th></tr></thead>
+                <thead>
+                  <tr><th>Order ID</th><th>Date</th><th>Total</th><th>Payment</th><th>Status</th></tr>
+                </thead>
                 <tbody>
                   {orders.length > 0 ? orders.map((order) => (
-                    <tr key={order.id}>
-                      <td>{order.product_display || 'N/A'}</td>
-                      <td>{order.date || 'N/A'}</td>
-                      <td>₱{Number(order.calculated_total || order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                    <tr key={order._id}>
+                                            <td>#{order._id?.slice(-6)}</td>
+                      <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
+                      <td>₱{Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                       <td>{order.payment_method || "COD"}</td>
-                      <td><span style={{padding: '4px 8px', borderRadius: '4px', fontSize: '12px', background: order.status === 'pending' ? '#ffd700' : order.status === 'completed' ? '#90EE90' : order.status === 'cancelled' ? '#ff6b6b' : '#87CEEB', color: '#000'}}>{order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}</span></td>
+                      <td>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          background: order.status === 'pending' ? '#ffd700' : order.status === 'completed' ? '#90EE90' : order.status === 'cancelled' ? '#ff6b6b' : '#87CEEB',
+                          color: '#000'
+                        }}>
+                          {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
+                        </span>
+                      </td>
                     </tr>
-                  )) : (<tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No orders yet</td></tr>)}
+                  )) : (
+                    <tr>
+                      <td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No orders yet</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -377,6 +378,7 @@ const BuyerDashboard = () => {
         </div>
       </div>
 
+      {/* MESSAGE MODAL */}
       {showMessageModal && (
         <div className="message-modal" onClick={() => setShowMessageModal(false)}>
           <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
