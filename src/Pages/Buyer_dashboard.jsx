@@ -134,7 +134,6 @@ const BuyerDashboard = () => {
     navigate("/login");
   };
 
-  // File Select
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     console.log("📁 File selected:", file);
@@ -167,41 +166,60 @@ const BuyerDashboard = () => {
     setEditedName(profile.name);
   }, [profile.name]);
 
-  // Save Profile to MongoDB
-  const handleSaveProfile = useCallback(async () => {
-    if (!buyerId) return;
+  // ✅ FIXED: Save Profile to MongoDB
+const handleSaveProfile = useCallback(async () => {
+  if (!buyerId) {
+    alert("No user ID found. Please login again.");
+    return;
+  }
 
-    const newName = editedName && editedName.trim() ? editedName.trim() : profile.name;
+  const newName = editedName && editedName.trim() ? editedName.trim() : profile.name;
 
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: newName,
-          profile_image: previewImage || ""
-        })
-      });
+  if (!newName) {
+    alert("Please enter a name.");
+    return;
+  }
 
+  console.log("📡 Saving profile...", { buyerId, newName, hasImage: !!previewImage });
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
+      method: "PUT",
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: newName,
+        profile_image: previewImage || ""
+      })
+    });
+
+    console.log("📡 Response status:", response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+      console.error("📡 Error response:", errorData);
+      throw new Error(errorData.message || "Failed to update");
+    }
+    
       const result = await response.json();
       console.log("📡 Save result:", result);
 
-      if (result) {
-        const newAvatarUrl = previewImage || profile.avatar;
-        
-        setProfile({
-          ...profile,
-          name: newName,
-          avatar: newAvatarUrl
-        });
-        
-        await fetchProfile(buyerId);
-        
-        alert("Profile updated successfully!");
-      }
+      const newAvatarUrl = previewImage || profile.avatar;
+      
+      setProfile({
+        ...profile,
+        name: newName,
+        avatar: newAvatarUrl
+      });
+
+      await fetchProfile(buyerId);
+      
+      alert("Profile updated successfully!");
+      
     } catch (err) {
       console.error("❌ Save error:", err);
-      alert("Failed to update profile. Please try again.");
+      alert(`Failed to update profile: ${err.message}`);
     }
 
     setShowProfileModal(false);
@@ -239,7 +257,6 @@ const BuyerDashboard = () => {
 
   return (
     <div className="buyer-dashboard-app">
-      {/* PROFILE MODAL */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfile}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
