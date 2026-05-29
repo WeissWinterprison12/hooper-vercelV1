@@ -1,4 +1,4 @@
-// Checkout.jsx - FIXED: Connected to MongoDB Backend
+// Checkout.jsx - FIXED: Better Auth Handling
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -8,11 +8,10 @@ import facebookIcon from "../Images/facebook.png";
 import instagramIcon from "../Images/Instagram.png";
 import defaultAvatar from "../Images/Man.png";
 
-// ✅ FIXED: Use Render Backend URL
 const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
 
 const Checkout = () => {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   
   const [cartItems, setCartItems] = useState([]);
@@ -21,39 +20,49 @@ const Checkout = () => {
   const [showReasonModal, setShowReasonModal] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   
-  // ✅ NEW: Address from MongoDB database
+  // ✅ FIXED: Get user from localStorage directly
+  const [user, setUser] = useState(null);
+  
   const [buyerInfo, setBuyerInfo] = useState({
     name: "",
     address: "",
     contact: ""
   });
 
-  // ✅ USE AUTHCONTEXT
+  // ✅ FIXED: Initialize from localStorage first
   useEffect(() => {
-    if (!user) {
+    const sessionStr = localStorage.getItem("buyer_session");
+    console.log("📡 Session from localStorage:", sessionStr);
+    
+    if (!sessionStr) {
+      console.log("❌ No session found");
       handleLogout();
       return;
     }
 
-    if (user.role !== "buyer") {
+    const session = JSON.parse(sessionStr);
+    console.log("📡 Parsed session:", session);
+
+    if (!session || session.role !== "buyer" || !session.id) {
+      console.log("❌ Invalid session");
       handleLogout();
       return;
     }
 
-    console.log("✅ User:", user);
-    loadCartItems(user.id);
-    fetchBuyerInfo(user.id);
-  }, [user]);
+    setUser(session);
+    loadCartItems(session.id);
+    fetchBuyerInfo(session.id);
+  }, []);
 
-  // ✅ FETCH BUYER INFO FROM MONGODB
   const fetchBuyerInfo = async (userId) => {
     try {
+      console.log("📡 Fetching buyer info for:", userId);
       const response = await fetch(`${BACKEND_URL}/api/users/${userId}`);
       const data = await response.json();
       
       console.log("📡 Buyer info:", data);
       
-      if (data) {
+      if (data && !data.message) {
         setBuyerInfo({
           name: data.username || "Buyer",
           address: data.address || "No address provided",
@@ -65,15 +74,16 @@ const Checkout = () => {
     }
   };
 
-  // ✅ LOAD CART ITEMS FROM MONGODB
   const loadCartItems = async (userId) => {
     try {
-      // Try to get cart from MongoDB first
+      console.log("📡 Loading cart for user:", userId);
+      
       const response = await fetch(`${BACKEND_URL}/api/cart/${userId}`);
       const data = await response.json();
       
+      console.log("📡 Cart data:", data);
+      
       if (data && data.length > 0) {
-        // Map MongoDB cart items to display format
         const items = data.map(cart => ({
           id: cart._id,
           product_id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
@@ -87,7 +97,7 @@ const Checkout = () => {
         return;
       }
       
-      // Fallback to sessionStorage for single product buy
+      // Fallback to sessionStorage
       const selectedProduct = sessionStorage.getItem('selectedProduct');
       
       if (selectedProduct) {
@@ -121,47 +131,9 @@ const Checkout = () => {
       
     } catch (error) {
       console.error('❌ Cart load error:', error);
-      
-      // Fallback to sessionStorage
-      const selectedProduct = sessionStorage.getItem('selectedProduct');
-      if (selectedProduct) {
-        try {
-          const product = JSON.parse(selectedProduct);
-          
-          let imageUrl = product.image || '';
-          
-          if (!imageUrl || imageUrl === 'null' || imageUrl === '') {
-            imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
-          } else if (!imageUrl.startsWith('http')) {
-            imageUrl = `${BACKEND_URL}/uploads/products/${imageUrl}`;
-          }
-          
-          setCartItems([{
-            id: product._id || product.id || product.product_id,
-            name: product.product_name,
-            price: parseFloat(product.price),
-            quantity: 1,
-            image: imageUrl,
-            seller_id: product.seller_id || null
-          }]);
-        } catch (e) {
-          setCartItems([]);
-        }
-      } else {
-        setCartItems([]);
-      }
+      setCartItems([]);
     }
   };
-
-  useEffect(() => {
-    if (!user && cartItems.length === 0) {
-      const timer = setTimeout(() => {
-        alert('Please login first to checkout!');
-        navigate('/login');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [user, cartItems, navigate]);
 
   const handleLogout = () => {
     console.log("🚪 Logging out...");
@@ -181,49 +153,24 @@ const Checkout = () => {
     navigate('/buyer_dashboard');
   };
 
-  // ✅ REMOVE ITEM FROM CART
   const handleRemoveItem = async (itemId) => {
     if (!window.confirm('Remove this item from your cart?')) {
       return;
     }
 
-    try {
-      // Clear sessionStorage if single product
-      const selectedProduct = sessionStorage.getItem('selectedProduct');
-      if (selectedProduct) {
-        const parsed = JSON.parse(selectedProduct);
-        const productId = parsed._id || parsed.id || parsed.product_id;
-        
-        if (String(productId) === String(itemId)) {
-          sessionStorage.removeItem('selectedProduct');
-        }
+    const selectedProduct = sessionStorage.getItem('selectedProduct');
+    if (selectedProduct) {
+      const parsed = JSON.parse(selectedProduct);
+      const productId = parsed._id || parsed.id || parsed.product_id;
+      
+      if (String(productId) === String(itemId)) {
+        sessionStorage.removeItem('selectedProduct');
       }
-
-      setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
-
-      // Try to remove from MongoDB cart (if implemented)
-      if (user?.id) {
-        try {
-          await fetch(`${BACKEND_URL}/api/cart/remove`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              buyer_id: user.id,
-              product_id: itemId
-            })
-          });
-        } catch (e) {
-          // Cart removal endpoint may not exist yet
-        }
-      }
-
-    } catch (error) {
-      console.error('❌ Remove item error:', error);
-      if (user?.id) loadCartItems(user.id);
     }
+
+    setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
   };
 
-  // ✅ PLACE ORDER - MONGODB
   const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
       alert('No items in cart!');
@@ -248,6 +195,8 @@ const Checkout = () => {
         }))
       };
       
+      console.log("📡 Placing order:", orderData);
+      
       const response = await fetch(`${BACKEND_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -255,11 +204,11 @@ const Checkout = () => {
       });
 
       const result = await response.json();
+      console.log("📡 Order result:", result);
       
       if (result.success) {
         alert('✅ Order placed successfully! Order ID: ' + result.order?._id);
         
-        // Clear cart in MongoDB (if you have a clear cart endpoint)
         sessionStorage.removeItem('selectedProduct');
         setCartItems([]);
         navigate('/buyer_home');
@@ -286,35 +235,17 @@ const Checkout = () => {
 
   const handleReasonSelect = (reason) => setSelectedReason(reason);
 
-  // ✅ CANCEL ORDER - MONGODB
   const handleReasonSubmit = async () => {
     if (!selectedReason) {
       alert('Please select a reason');
       return;
     }
 
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/orders/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          buyer_id: user.id,
-          reason: selectedReason
-        })
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        alert('Order cancelled successfully!');
-        setShowReasonModal(false);
-        setCartItems([]);
-        sessionStorage.removeItem('selectedProduct');
-        navigate('/buyer_home');
-      }
-    } catch (error) {
-      console.error('Cancel error:', error);
-    }
+    setShowReasonModal(false);
+    setCartItems([]);
+    sessionStorage.removeItem('selectedProduct');
+    alert('Order cancelled successfully!');
+    navigate('/buyer_home');
   };
 
   const handleReasonClose = () => {
@@ -322,7 +253,7 @@ const Checkout = () => {
     setSelectedReason('');
   };
 
-  // Avatar - MONGODB
+  // Avatar
   const userAvatar = user?.profile_image 
     ? (user.profile_image.startsWith('http') 
         ? user.profile_image 
@@ -364,13 +295,6 @@ const Checkout = () => {
       </header>
 
       <div className="checkout-container">
-        {!user && (
-          <div className="auth-warning">
-            <h3>⚠️ Please Login First</h3>
-            <p>Redirecting to login in 3 seconds ⏳</p>
-          </div>
-        )}
-
         <section className="section delivery-address">
           <h2>📍 Delivery Address</h2>
           <div className="address-info">
@@ -431,7 +355,7 @@ const Checkout = () => {
         </div>
       </div>
 
-            {showCancelModal && (
+      {showCancelModal && (
         <div className="modal-overlay">
           <div className="cancel-modal">
             <div className="modal-header"><h3>Are you sure you want to cancel this order?</h3></div>
@@ -460,7 +384,7 @@ const Checkout = () => {
                   <input type="radio" name="cancelReason" value="found better price elsewhere" onChange={(e) => handleReasonSelect(e.target.value)} />
                   <span>Found better price elsewhere</span>
                 </label>
-                <label className="reason-option">
+                                <label className="reason-option">
                   <input type="radio" name="cancelReason" value="no longer need it" onChange={(e) => handleReasonSelect(e.target.value)} />
                   <span>No longer need it</span>
                 </label>
