@@ -1,4 +1,4 @@
-// Checkout.jsx - FIXED: Address from DB + No yellow border
+// Checkout.jsx - FIXED: Connected to MongoDB Backend
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -7,6 +7,9 @@ import logo from "../Images/HoopersFits.png";
 import facebookIcon from "../Images/facebook.png";
 import instagramIcon from "../Images/Instagram.png";
 import defaultAvatar from "../Images/Man.png";
+
+// ✅ FIXED: Use Render Backend URL
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
 
 const Checkout = () => {
   const { user, logout } = useAuth();
@@ -18,7 +21,7 @@ const Checkout = () => {
   const [showReasonModal, setShowReasonModal] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   
-  // ✅ NEW: Address from database
+  // ✅ NEW: Address from MongoDB database
   const [buyerInfo, setBuyerInfo] = useState({
     name: "",
     address: "",
@@ -42,17 +45,17 @@ const Checkout = () => {
     fetchBuyerInfo(user.id);
   }, [user]);
 
-  // ✅ FETCH BUYER INFO FROM DATABASE
+  // ✅ FETCH BUYER INFO FROM MONGODB
   const fetchBuyerInfo = async (userId) => {
     try {
-      const response = await fetch(`http://localhost/hooper_fits_api/get_buyer_profile.php?id=${userId}`);
+      const response = await fetch(`${BACKEND_URL}/api/users/${userId}`);
       const data = await response.json();
       
       console.log("📡 Buyer info:", data);
       
-      if (!data.error) {
+      if (data) {
         setBuyerInfo({
-          name: data.name || data.username || "Buyer",
+          name: data.username || "Buyer",
           address: data.address || "No address provided",
           contact: data.contact || "No contact provided"
         });
@@ -62,16 +65,29 @@ const Checkout = () => {
     }
   };
 
+  // ✅ LOAD CART ITEMS FROM MONGODB
   const loadCartItems = async (userId) => {
     try {
-      const response = await fetch(`http://localhost/hooper_fits_api/get_cart.php?buyer_id=${userId}`);
+      // Try to get cart from MongoDB first
+      const response = await fetch(`${BACKEND_URL}/api/cart/${userId}`);
       const data = await response.json();
       
-      if (data.success && data.cart && data.cart.length > 0) {
-        setCartItems(data.cart);
+      if (data && data.length > 0) {
+        // Map MongoDB cart items to display format
+        const items = data.map(cart => ({
+          id: cart._id,
+          product_id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
+          name: cart.products?.[0]?.product_id?.product_name || "Product",
+          price: cart.products?.[0]?.product_id?.price || 0,
+          quantity: cart.products?.[0]?.quantity || 1,
+          image: cart.products?.[0]?.product_id?.image || '',
+          seller_id: cart.products?.[0]?.product_id?.seller_id || null
+        }));
+        setCartItems(items);
         return;
       }
       
+      // Fallback to sessionStorage for single product buy
       const selectedProduct = sessionStorage.getItem('selectedProduct');
       
       if (selectedProduct) {
@@ -83,11 +99,11 @@ const Checkout = () => {
           if (!imageUrl || imageUrl === 'null' || imageUrl === '') {
             imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
           } else if (!imageUrl.startsWith('http')) {
-            imageUrl = 'http://localhost/hooper_fits_api/uploads/products/' + imageUrl;
+            imageUrl = `${BACKEND_URL}/uploads/products/${imageUrl}`;
           }
           
           const cartItem = [{
-            id: product.id || product.product_id,
+            id: product._id || product.id || product.product_id,
             name: product.product_name,
             price: parseFloat(product.price),
             quantity: 1,
@@ -106,6 +122,7 @@ const Checkout = () => {
     } catch (error) {
       console.error('❌ Cart load error:', error);
       
+      // Fallback to sessionStorage
       const selectedProduct = sessionStorage.getItem('selectedProduct');
       if (selectedProduct) {
         try {
@@ -113,14 +130,14 @@ const Checkout = () => {
           
           let imageUrl = product.image || '';
           
-          if (!imageUrl || imageUrl === 'null' || imageUrl === 'undefined') {
+          if (!imageUrl || imageUrl === 'null' || imageUrl === '') {
             imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
           } else if (!imageUrl.startsWith('http')) {
-            imageUrl = 'http://localhost/hooper_fits_api/uploads/products/' + imageUrl;
+            imageUrl = `${BACKEND_URL}/uploads/products/${imageUrl}`;
           }
           
           setCartItems([{
-            id: product.id || product.product_id,
+            id: product._id || product.id || product.product_id,
             name: product.product_name,
             price: parseFloat(product.price),
             quantity: 1,
@@ -164,16 +181,18 @@ const Checkout = () => {
     navigate('/buyer_dashboard');
   };
 
+  // ✅ REMOVE ITEM FROM CART
   const handleRemoveItem = async (itemId) => {
     if (!window.confirm('Remove this item from your cart?')) {
       return;
     }
 
     try {
+      // Clear sessionStorage if single product
       const selectedProduct = sessionStorage.getItem('selectedProduct');
       if (selectedProduct) {
         const parsed = JSON.parse(selectedProduct);
-        const productId = parsed.id || parsed.product_id;
+        const productId = parsed._id || parsed.id || parsed.product_id;
         
         if (String(productId) === String(itemId)) {
           sessionStorage.removeItem('selectedProduct');
@@ -182,15 +201,20 @@ const Checkout = () => {
 
       setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
 
+      // Try to remove from MongoDB cart (if implemented)
       if (user?.id) {
-        await fetch('http://localhost/hooper_fits_api/remove_cart_item.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            buyer_id: user.id,
-            product_id: itemId
-          })
-        });
+        try {
+          await fetch(`${BACKEND_URL}/api/cart/remove`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              buyer_id: user.id,
+              product_id: itemId
+            })
+          });
+        } catch (e) {
+          // Cart removal endpoint may not exist yet
+        }
       }
 
     } catch (error) {
@@ -199,6 +223,7 @@ const Checkout = () => {
     }
   };
 
+  // ✅ PLACE ORDER - MONGODB
   const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
       alert('No items in cart!');
@@ -216,18 +241,14 @@ const Checkout = () => {
         buyer_id: user.id,
         payment_method: "COD",
         items: cartItems.map(item => ({
-          id: item.id,
+          product_id: item.id || item.product_id,
           seller_id: item.seller_id || null,
           quantity: item.quantity,
           price: item.price
-        })),
-        subtotal,
-        shipping,
-        total,
-        status: 'pending'
+        }))
       };
       
-      const response = await fetch('http://localhost/hooper_fits_api/place_order.php', {
+      const response = await fetch(`${BACKEND_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
@@ -236,25 +257,18 @@ const Checkout = () => {
       const result = await response.json();
       
       if (result.success) {
-        alert('✅ Order placed successfully! Order ID: ' + result.order_id);
+        alert('✅ Order placed successfully! Order ID: ' + result.order?._id);
         
-        await fetch('http://localhost/hooper_fits_api/cancel_order.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            buyer_id: user.id,
-            reason: 'order_placed_successfully'
-          })
-        });
-        
+        // Clear cart in MongoDB (if you have a clear cart endpoint)
         sessionStorage.removeItem('selectedProduct');
         setCartItems([]);
         navigate('/buyer_home');
       } else {
-        alert('❌ Failed to place order: ' + (result.error || 'Unknown error'));
+        alert('❌ Failed to place order: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('❌ Network error:', error);
+      alert('Failed to place order. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -272,6 +286,7 @@ const Checkout = () => {
 
   const handleReasonSelect = (reason) => setSelectedReason(reason);
 
+  // ✅ CANCEL ORDER - MONGODB
   const handleReasonSubmit = async () => {
     if (!selectedReason) {
       alert('Please select a reason');
@@ -279,7 +294,7 @@ const Checkout = () => {
     }
 
     try {
-      const response = await fetch('http://localhost/hooper_fits_api/cancel_order.php', {
+      const response = await fetch(`${BACKEND_URL}/api/orders/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -307,9 +322,11 @@ const Checkout = () => {
     setSelectedReason('');
   };
 
-  // Avatar
+  // Avatar - MONGODB
   const userAvatar = user?.profile_image 
-    ? `http://localhost/hooper_fits_api/uploads/profiles/${user.profile_image}`
+    ? (user.profile_image.startsWith('http') 
+        ? user.profile_image 
+        : `${BACKEND_URL}/uploads/profiles/${user.profile_image}`)
     : defaultAvatar;
 
   const handleImageError = (e) => {
@@ -414,7 +431,7 @@ const Checkout = () => {
         </div>
       </div>
 
-      {showCancelModal && (
+            {showCancelModal && (
         <div className="modal-overlay">
           <div className="cancel-modal">
             <div className="modal-header"><h3>Are you sure you want to cancel this order?</h3></div>
@@ -428,7 +445,7 @@ const Checkout = () => {
       )}
 
       {showReasonModal && (
-                <div className="modal-overlay">
+        <div className="modal-overlay">
           <div className="cancel-reason-modal">
             <div className="modal-header">
               <h3>Please choose a reason why you want to cancel</h3>
