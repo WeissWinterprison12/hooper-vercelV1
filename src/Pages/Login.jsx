@@ -83,8 +83,8 @@ const Login = () => {
     setPasswordError("");
 
     try {
-      // 🔥 CHANGE 2: New Express Backend URL
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      // ✅ FIXED: Use Production URL instead of localhost
+      const response = await fetch("https://hooper-renderv1-4.onrender.com/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // 🔥 CHANGE 3: Send email + password
@@ -153,7 +153,7 @@ const Login = () => {
       }
     } catch (error) {
       console.error("❌ Error:", error);
-      setPasswordError("Connection failed. Is backend running on port 5000?");
+      setPasswordError("Connection failed. Please check your internet.");
     }
   };
 
@@ -205,7 +205,8 @@ const Login = () => {
     if (Object.keys(newErrors).length > 0) return;
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/reset-password", {
+      // ✅ FIXED: Use Production URL instead of localhost
+      const response = await fetch("https://hooper-renderv1-4.onrender.com/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -229,7 +230,7 @@ const Login = () => {
       }
     } catch (error) {
       console.error("❌ Reset Error:", error);
-      setResetError("Connection failed. Is backend running on port 5000?");
+      setResetError("Connection failed. Please check your internet.");
     }
   };
 
@@ -418,7 +419,7 @@ const Login = () => {
         }
       `}</style>
 
-            <section className="hero">
+      <section className="hero">
         <div className="header">
           <img src={logo} className="logo" alt="Hoopers Fits Logo" />
           <nav className="nav">
@@ -468,7 +469,7 @@ const Login = () => {
                     {passwordError && <div className="error-text">{passwordError}</div>}
                   </div>
 
-                  {isLockedOut && lockoutMessage && (
+                                    {isLockedOut && lockoutMessage && (
                     <div className="lockout-text">
                       🔒 {lockoutMessage}<br />
                       ⏱️ Please wait: {formatTime(lockoutRemaining)}

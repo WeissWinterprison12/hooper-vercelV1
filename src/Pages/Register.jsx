@@ -80,8 +80,8 @@ const Register = () => {
     if (!validate(username, password, confirmPassword)) return;
 
     try {
-      // ✅ SIMPLE: Only send username, email, password, role
-      const response = await fetch("http://localhost:5000/api/auth/register", {
+      // ✅ FIXED: Use Production URL
+      const response = await fetch("https://hooper-renderv1-4.onrender.com/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -112,7 +112,7 @@ const Register = () => {
       }
     } catch (error) {
       console.error(error);
-      alert("Server error - is backend running on port 5000?");
+      alert("Server error - please check your internet connection.");
     }
   };
 
