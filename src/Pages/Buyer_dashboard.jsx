@@ -1,4 +1,4 @@
-// buyer_dashboard.jsx - FIXED for MongoDB Backend
+// buyer_dashboard.jsx - FIXED for MongoDB Backend (with FormData upload)
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -13,6 +13,7 @@ const BuyerDashboard = () => {
   const navigate = useNavigate();
   
   const [buyerId, setBuyerId] = useState(null);
+  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
@@ -24,9 +25,11 @@ const BuyerDashboard = () => {
   const [previewImage, setPreviewImage] = useState(null);
   const [editedName, setEditedName] = useState("");
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [profile, setProfile] = useState({
-    name: "",
+    fullName: "",
+    username: "",
     avatar: defaultAvatar
   });
 
@@ -66,7 +69,7 @@ const BuyerDashboard = () => {
     initializeDashboard();
   }, [navigate]);
 
-  // Fetch Profile from MongoDB
+    // Fetch Profile from MongoDB
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
@@ -78,23 +81,31 @@ const BuyerDashboard = () => {
       const data = await response.json();
       console.log("📡 Profile data:", data);
 
+      // ✅ Build correct avatar URL
       let avatarUrl = defaultAvatar;
       
       if (data.profile_image) {
-        avatarUrl = data.profile_image.startsWith("http") 
-          ? data.profile_image 
-          : `${BACKEND_URL}/uploads/profiles/${data.profile_image}`;
+        // If it's already a full URL, use it
+        if (data.profile_image.startsWith("http")) {
+          avatarUrl = data.profile_image;
+        } 
+        // If it's a relative path, add the backend URL
+        else {
+          avatarUrl = `https://hooper-renderv1-4.onrender.com${data.profile_image}`;
+        }
       }
           
       setProfile({
-        name: data.username || "",
+        fullName: data.fullName || data.username || "",
+        username: data.username || "",
         avatar: avatarUrl
       });
-      setEditedName(data.username || "");
+      setEditedName(data.fullName || data.username || "");
+      setUsername(data.username || "");
       
     } catch (err) {
       console.error("❌ Error fetching profile:", err);
-      setProfile({ name: "", avatar: defaultAvatar });
+      setProfile({ fullName: "", username: "", avatar: defaultAvatar });
     }
   };
 
@@ -139,6 +150,12 @@ const BuyerDashboard = () => {
     console.log("📁 File selected:", file);
     
     if (file) {
+      // Check file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image too large! Please select an image under 2MB.");
+        return;
+      }
+      
       setSelectedFile(file);
 
       const reader = new FileReader();
@@ -163,56 +180,65 @@ const BuyerDashboard = () => {
     setShowProfileModal(false);
     setSelectedFile(null);
     setPreviewImage(null);
-    setEditedName(profile.name);
-  }, [profile.name]);
+    setEditedName(profile.fullName || profile.username || "");
+  }, [profile.fullName, profile.username]);
 
-  // ✅ FIXED: Save Profile to MongoDB
-const handleSaveProfile = useCallback(async () => {
-  if (!buyerId) {
-    alert("No user ID found. Please login again.");
-    return;
-  }
-
-  const newName = editedName && editedName.trim() ? editedName.trim() : profile.name;
-
-  if (!newName) {
-    alert("Please enter a name.");
-    return;
-  }
-
-  console.log("📡 Saving profile...", { buyerId, newName, hasImage: !!previewImage });
-
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
-      method: "PUT",
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        username: newName,
-        profile_image: previewImage || ""
-      })
-    });
-
-    console.log("📡 Response status:", response.status);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-      console.error("📡 Error response:", errorData);
-      throw new Error(errorData.message || "Failed to update");
+    // ✅ Save Profile - separate text and image
+  const handleSaveProfile = useCallback(async () => {
+    if (!buyerId) {
+      alert("No user ID found. Please login again.");
+      return;
     }
-    
-      const result = await response.json();
-      console.log("📡 Save result:", result);
 
-      const newAvatarUrl = previewImage || profile.avatar;
+    const newName = editedName && editedName.trim() ? editedName.trim() : profile.fullName || profile.username;
+
+    if (!newName) {
+      alert("Please enter a name.");
+      return;
+    }
+
+    console.log("📡 Saving profile...", { buyerId, newName });
+
+    try {
+      setUploading(true);
       
-      setProfile({
-        ...profile,
-        name: newName,
-        avatar: newAvatarUrl
+      // First, update the name (and any other text fields)
+      const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fullName: newName
+        })
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || "Failed to update name");
+      }
+      
+      const result = await response.json();
+      console.log("📡 Name saved:", result);
+
+      // Then, if there's a file selected, upload the image separately
+      if (selectedFile) {
+        const imageFormData = new FormData();
+        imageFormData.append("profile_image", selectedFile);
+
+        const imageResponse = await fetch(`${BACKEND_URL}/api/users/${buyerId}/image`, {
+          method: "PUT",
+          body: imageFormData
+        });
+
+        if (!imageResponse.ok) {
+          console.log("⚠️ Image upload failed, but name was saved");
+        } else {
+          const imageResult = await imageResponse.json();
+          console.log("📡 Image saved:", imageResult);
+        }
+      }
+      
       await fetchProfile(buyerId);
       
       alert("Profile updated successfully!");
@@ -220,12 +246,13 @@ const handleSaveProfile = useCallback(async () => {
     } catch (err) {
       console.error("❌ Save error:", err);
       alert(`Failed to update profile: ${err.message}`);
+    } finally {
+      setUploading(false);
+      setShowProfileModal(false);
+      setSelectedFile(null);
+      setPreviewImage(null);
     }
-
-    setShowProfileModal(false);
-    setSelectedFile(null);
-    setPreviewImage(null);
-  }, [buyerId, editedName, profile, previewImage]);
+  }, [buyerId, editedName, profile, selectedFile, fetchProfile]);
 
   const handleNameChange = useCallback((e) => {
     setEditedName(e.target.value);
@@ -236,7 +263,11 @@ const handleSaveProfile = useCallback(async () => {
   }, [previewImage, profile.avatar]);
 
   const getDisplayName = () => {
-    return editedName || profile.name || "Buyer";
+    return editedName || profile.fullName || profile.username || "Buyer";
+  };
+
+  const getDisplayUsername = () => {
+    return profile.username || "@user";
   };
 
   if (loading) {
@@ -281,9 +312,16 @@ const handleSaveProfile = useCallback(async () => {
             <p className="modal-subtitle">Click avatar to change profile image</p>
             
             <input type="text" value={editedName} onChange={handleNameChange} className="profile-name-input"
-              placeholder="Enter your display name" autoComplete="off" />
+              placeholder="Enter your full name" autoComplete="off" />
 
-            <button className="get-image-btn" onClick={handleSaveProfile} type="button">💾 Save Changes</button>
+            <button 
+              className="get-image-btn" 
+              onClick={handleSaveProfile} 
+              type="button"
+              disabled={uploading}
+            >
+              {uploading ? "⏳ Saving..." : "💾 Save Changes"}
+            </button>
             <button className="cancel-btn" onClick={handleCancelProfile} type="button">❌ Cancel</button>
           </div>
         </div>
@@ -303,6 +341,7 @@ const handleSaveProfile = useCallback(async () => {
             )}
           </div>
           <p className="profile-name">{getDisplayName()}</p>
+          <p className="profile-username">{getDisplayUsername()}</p>
         </div>
         
         <ul>
@@ -367,7 +406,7 @@ const handleSaveProfile = useCallback(async () => {
                 <tbody>
                   {orders.length > 0 ? orders.map((order) => (
                     <tr key={order._id}>
-                                            <td>#{order._id?.slice(-6)}</td>
+                      <td>#{order._id?.slice(-6)}</td>
                       <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
                       <td>₱{Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                       <td>{order.payment_method || "COD"}</td>
