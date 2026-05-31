@@ -1,6 +1,6 @@
 // buyer_home.jsx - SIMPLIFIED: Uses AuthContext
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom"; // ✅ Updated import
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../AuthContext"; 
 import logo from "../Images/HoopersFits.png";
 import profileIcon from "../Images/Profile.png";
@@ -18,6 +18,37 @@ const BuyerHome = () => {
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
+
+  // ✅ Fetch user profile to get fullName
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const session = JSON.parse(localStorage.getItem("buyer_session") || localStorage.getItem("seller_session"));
+        const token = session?.token;
+        
+        const response = await fetch(`https://hooper-renderv1-4.onrender.com/api/users/${user.id}`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setUserProfile(data);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      }
+    };
+
+    if (user?.id) {
+      fetchUserProfile();
+    }
+  }, [user]);
 
   // ✅ USE AUTHCONTEXT (NO API CALL!)
   useEffect(() => {
@@ -45,12 +76,12 @@ const BuyerHome = () => {
     navigate('/buyer_dashboard');
   };
 
-  // ✅ Get name from session
-  const userName = user?.name || "Buyer";
+  // ✅ Get name from userProfile (from database)
+  const userName = userProfile?.fullName || "Buyer";
   
   // ✅ Build avatar URL from session
-  const userAvatar = user?.profile_image 
-    ? `http://localhost/hooper_fits_api/uploads/profiles/${user.profile_image}`
+  const userAvatar = userProfile?.profile_image 
+    ? `http://localhost/hooper_fits_api/uploads/profiles/${userProfile.profile_image}`
     : defaultAvatar;
 
   const handleImageError = (e) => {
@@ -252,7 +283,7 @@ const BuyerHome = () => {
           filter: brightness(1.5);
         }
 
-                @media (max-width: 900px) {
+        @media (max-width: 900px) {
           .featured-grid {
             grid-template-columns: 1fr;
           }
