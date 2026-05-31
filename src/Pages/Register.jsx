@@ -1,4 +1,4 @@
-// register.jsx - OPTION A: Simple Registration (no extra fields)
+// register.jsx - OPTION A: Simple Registration (with security question)
 import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../Images/HoopersFits.png";
@@ -10,6 +10,45 @@ const Register = () => {
   const navigate = useNavigate();
   const registerBoxRef = useRef(null);
   const [errors, setErrors] = useState({});
+
+  // ✅ Security Questions (same as login.jsx)
+  const [securityQuestions] = useState([
+    "What is the name of your first pet?",
+    "What is your mother's maiden name?",
+    "What is the name of your father?",
+    "What is the name of your first school?",
+    "What city were you born in?",
+    "What is your favorite childhood book?"
+  ]);
+
+  // ✅ STEP 1 - Add new state
+  const [formData, setFormData] = useState({
+    fullName: "",
+    month: "",
+    day: "",
+    year: "",
+    address: "",
+    security_question: "",
+    security_answer: ""
+  });
+
+  // ✅ STEP 2 - Add date logic
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const currentYear = 2026;
+
+  const years = Array.from(
+    { length: currentYear - 1900 + 1 },
+    (_, i) => 1900 + i
+  );
+
+  const getDaysInMonth = (month, year) => {
+    if (!month || !year) return 31;
+    return new Date(year, months.indexOf(month) + 1, 0).getDate();
+  };
 
   const usernameRegex = /^(?=.*[A-Z])[A-Za-z0-9]{6,15}$/;
 
@@ -66,8 +105,16 @@ const Register = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // ✅ STEP 3 - Add handler
+  const handleChangeExtra = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
   // =====================================================
-  // 🔥 handleRegister - Simple OPTION A
+  // 🔥 handleRegister - UPDATED with extra fields + security question
   // =====================================================
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -86,11 +133,22 @@ const Register = () => {
         headers: {
           "Content-Type": "application/json",
         },
+        // ✅ STEP 4 - Updated body with extra fields + security question
         body: JSON.stringify({
           username,
           email,
           password,
-          role: "buyer" // Default role
+          role: "buyer",
+
+          fullName: formData.fullName,
+          birthday: {
+            month: formData.month,
+            day: formData.day,
+            year: formData.year
+          },
+          address: formData.address,
+          security_question: formData.security_question,
+          security_answer: formData.security_answer
         }),
       });
 
@@ -173,6 +231,7 @@ const Register = () => {
 
         .register-section {
           width: 360px;
+          height: 400px;
           background: rgba(255,255,255,0.95);
           color: #333;
           border-radius: 12px;
@@ -184,7 +243,16 @@ const Register = () => {
           overflow: hidden;
         }
 
-        .form-scroll { flex: 1; overflow-y: auto; padding-right: 5px; max-height: 350px; }
+        .form-scroll { 
+          flex: 1; 
+          overflow-y: auto; 
+          padding-right: 5px;
+          scrollbar-width: thin;
+          scrollbar-color: #ccc transparent;
+        }
+        .form-scroll::-webkit-scrollbar { width: 4px; }
+        .form-scroll::-webkit-scrollbar-track { background: transparent; }
+        .form-scroll::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
 
         .login-tabs { display: flex; justify-content: space-around; margin-bottom: 10px; }
         .login-tabs button {
@@ -197,14 +265,30 @@ const Register = () => {
         }
         .login-tabs button.active { border-color: #dc3545; color: #dc3545; font-weight: 600; }
 
-        .form-group { margin-bottom: 15px; }
+        .form-group { margin-bottom: 12px; }
         .form-group label { font-size: 14px; display: block; margin-bottom: 5px; font-weight: 500; }
-        .form-group input { 
+        .form-group input, .form-group select { 
           width: 100%; 
           padding: 10px; 
           border: 1px solid #ddd; 
           border-radius: 4px; 
           font-size: 14px;
+          background: #fff;
+        }
+        .form-group select { cursor: pointer; }
+
+        /* ✅ Birthday select styles */
+        .form-group select {
+          width: 32%;
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 14px;
+          background: #fff;
+        }
+        .form-group select:disabled {
+          background: #f0f0f0;
+          cursor: not-allowed;
         }
 
         .login-button {
@@ -215,7 +299,7 @@ const Register = () => {
           border: none;
           border-radius: 20px;
           cursor: pointer;
-          margin-top: 10px;
+          margin-top: 5px;
           font-size: 16px;
           font-weight: 600;
         }
@@ -287,6 +371,110 @@ const Register = () => {
                 <input name="email" type="email" required />
               </div>
 
+              {/* ✅ FULL NAME */}
+              <div className="form-group">
+                <label>Full Name</label>
+                <input
+                  type="text"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleChangeExtra}
+                  required
+                />
+              </div>
+
+              {/* ✅ BIRTHDAY (SMART DROPDOWNS) */}
+              <div className="form-group">
+                <label>Birthday</label>
+
+                {/* Month */}
+                <select
+                  name="month"
+                  value={formData.month}
+                  onChange={(e) => {
+                    setFormData({ ...formData, month: e.target.value, day: "" });
+                  }}
+                  required
+                >
+                  <option value="">Month</option>
+                  {months.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+
+                {/* Day */}
+                <select
+                  name="day"
+                  value={formData.day}
+                  onChange={handleChangeExtra}
+                  disabled={!formData.month || !formData.year}
+                  required
+                >
+                  <option value="">Day</option>
+                  {Array.from(
+                    { length: getDaysInMonth(formData.month, formData.year) },
+                    (_, i) => i + 1
+                  ).map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+
+                {/* Year */}
+                <select
+                  name="year"
+                  value={formData.year}
+                  onChange={(e) => {
+                    setFormData({ ...formData, year: e.target.value, day: "" });
+                  }}
+                  required
+                >
+                  <option value="">Year</option>
+                  {years.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ✅ ADDRESS */}
+              <div className="form-group">
+                <label>Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChangeExtra}
+                  required
+                />
+              </div>
+
+              {/* ✅ SECURITY QUESTION (optional) */}
+              <div className="form-group">
+                <label>Security Question<span className="tooltip" title="Used for password reset">?</span></label>
+                <select 
+                  name="security_question" 
+                  value={formData.security_question}
+                  onChange={handleChangeExtra}
+                >
+                  <option value="">Select a security question (optional)</option>
+                  {securityQuestions.map((question, index) => (
+                    <option key={index} value={question}>{question}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ✅ SECURITY ANSWER */}
+              {formData.security_question && (
+                <div className="form-group">
+                  <label>Security Answer<span className="tooltip" title="Answer to your security question">?</span></label>
+                  <input
+                    type="text"
+                    name="security_answer"
+                    value={formData.security_answer}
+                    onChange={handleChangeExtra}
+                  />
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Password<span className="tooltip" title="8-20 characters with uppercase, lowercase, and number. No special characters">?</span></label>
                 <input name="password" type="password" className={errors.password ? "error-input" : ""} required />
@@ -305,7 +493,7 @@ const Register = () => {
         </div>
       </section>
 
-      <footer className="footer">
+            <footer className="footer">
         <p>
           <a href="/privacy" className="footer-link">Privacy Policy</a> |
           <a href="/terms" className="footer-link">Terms & Conditions</a>
