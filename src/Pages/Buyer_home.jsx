@@ -1,4 +1,4 @@
-// buyer_home.jsx - SIMPLIFIED: Uses AuthContext
+// buyer_home.jsx - FIXED: Uses AuthContext
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../AuthContext"; 
@@ -13,6 +13,8 @@ import img1 from "../Images/Black simple caps fashion promotion - instagram post
 import img2 from "../Images/cdg.jpg";
 import img3 from "../Images/fireeee.jpg";
 
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
+
 const BuyerHome = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -26,18 +28,11 @@ const BuyerHome = () => {
       if (!user?.id) return;
       
       try {
-        const session = JSON.parse(localStorage.getItem("buyer_session") || localStorage.getItem("seller_session"));
-        const token = session?.token;
-        
-        const response = await fetch(`https://hooper-renderv1-4.onrender.com/api/users/${user.id}`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          }
-        });
+        const response = await fetch(`${BACKEND_URL}/api/users/${user.id}`);
         
         if (response.ok) {
           const data = await response.json();
+          console.log("📡 Buyer home profile data:", data);
           setUserProfile(data);
         }
       } catch (error) {
@@ -69,6 +64,7 @@ const BuyerHome = () => {
   const handleLogout = () => {
     console.log("🚪 Logging out...");
     logout();
+    localStorage.removeItem("buyer_session");
     navigate("/login");
   };
   
@@ -77,11 +73,11 @@ const BuyerHome = () => {
   };
 
   // ✅ Get name from userProfile (from database)
-  const userName = userProfile?.fullName || "Buyer";
+  const userName = userProfile?.fullName || userProfile?.username || "Buyer";
   
-  // ✅ Build avatar URL from session
+  // ✅ Build avatar URL - use full URL from backend or default
   const userAvatar = userProfile?.profile_image 
-    ? `http://localhost/hooper_fits_api/uploads/profiles/${userProfile.profile_image}`
+    ? userProfile.profile_image  // Backend already returns full URL now!
     : defaultAvatar;
 
   const handleImageError = (e) => {
@@ -333,7 +329,6 @@ const BuyerHome = () => {
             onError={handleImageError}
           />
 
-          {/* ✅ Updated to use Link instead of <a> with onClick */}
           <Link to="/checkout">
             <img src={cartIcon} alt="Cart" title="Checkout" />
           </Link>
