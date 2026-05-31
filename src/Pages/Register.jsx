@@ -277,8 +277,8 @@ const Register = () => {
         }
         .form-group select { cursor: pointer; }
 
-        /* ✅ Birthday select styles */
-        .form-group select {
+        /* ✅ Birthday select - 3 in a row */
+        .form-group.birthday select {
           width: 32%;
           padding: 10px;
           border: 1px solid #ddd;
@@ -286,7 +286,7 @@ const Register = () => {
           font-size: 14px;
           background: #fff;
         }
-        .form-group select:disabled {
+        .form-group.birthday select:disabled {
           background: #f0f0f0;
           cursor: not-allowed;
         }
@@ -384,7 +384,7 @@ const Register = () => {
               </div>
 
               {/* ✅ BIRTHDAY (SMART DROPDOWNS) */}
-              <div className="form-group">
+              <div className="form-group birthday">
                 <label>Birthday</label>
 
                 {/* Month */}
@@ -447,7 +447,7 @@ const Register = () => {
                 />
               </div>
 
-              {/* ✅ SECURITY QUESTION (optional) */}
+              {/* ✅ SECURITY QUESTION (full width) */}
               <div className="form-group">
                 <label>Security Question<span className="tooltip" title="Used for password reset">?</span></label>
                 <select 
@@ -493,7 +493,7 @@ const Register = () => {
         </div>
       </section>
 
-            <footer className="footer">
+      <footer className="footer">
         <p>
           <a href="/privacy" className="footer-link">Privacy Policy</a> |
           <a href="/terms" className="footer-link">Terms & Conditions</a>
@@ -506,7 +506,7 @@ const Register = () => {
             </a>
             <a href="https://www.instagram.com/hoopersfits.ph?igsh=ZTFtNmw1YTR0OGZ6" target="_blank" rel="noopener noreferrer">
               <img src={instagramIcon} alt="Instagram" />
-            </a>
+                        </a>
           </span>
         </div>
       </footer>
