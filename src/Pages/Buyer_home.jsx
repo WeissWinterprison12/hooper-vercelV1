@@ -1,6 +1,6 @@
 // buyer_home.jsx - SIMPLIFIED: Uses AuthContext
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom"; // ✅ Updated import
 import { useAuth } from "../AuthContext"; 
 import logo from "../Images/HoopersFits.png";
 import profileIcon from "../Images/Profile.png";
@@ -43,10 +43,6 @@ const BuyerHome = () => {
   
   const handleProfileClick = () => {
     navigate('/buyer_dashboard');
-  };
-
-  const handleCartClick = () => {
-    navigate('/checkout');
   };
 
   // ✅ Get name from session
@@ -256,7 +252,7 @@ const BuyerHome = () => {
           filter: brightness(1.5);
         }
 
-        @media (max-width: 900px) {
+                @media (max-width: 900px) {
           .featured-grid {
             grid-template-columns: 1fr;
           }
@@ -306,9 +302,10 @@ const BuyerHome = () => {
             onError={handleImageError}
           />
 
-          <a href="/checkout" onClick={handleCartClick}>
+          {/* ✅ Updated to use Link instead of <a> with onClick */}
+          <Link to="/checkout">
             <img src={cartIcon} alt="Cart" title="Checkout" />
-          </a>
+          </Link>
         </div>
 
         <span className="logout-btn" onClick={handleLogout}>
