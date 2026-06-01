@@ -1,4 +1,4 @@
-// Contact.jsx - FIXED: Uses AuthContext + New Backend
+// Contact.jsx - FIXED: With page title
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -27,6 +27,11 @@ const Contact = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // ✅ SET PAGE TITLE
+  useEffect(() => {
+    document.title = "Contact Us - Hooper Fits";
+  }, []);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -79,7 +84,6 @@ const Contact = () => {
     window.open("https://www.facebook.com/share/1as5kdEkMr/", "_blank");
   };
 
-  // ✅ CLICKABLE LOCATION - Open Google Maps
   const handleLocationClick = () => {
     window.open("https://www.google.com/maps/place/14%C2%B025'47.2%22N+120%C2%B055'37.6%22E/@14.4297673,120.9264603,19z/data=!3m1!4b1!4m4!3m3!8m2!3d14.429766!4d120.927104?entry=ttu&g_ep=EgoyMDI2MDUyNy4wIKXMDSoASAFQAw%3D%3D", "_blank");
   };
@@ -267,6 +271,23 @@ const Contact = () => {
         .user-avatar:hover {
           transform: scale(1.1);
         }
+        
+        .page-title {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          margin-bottom: 30px;
+        }
+        .page-title-logo {
+          width: 60px;
+          height: auto;
+        }
+        .page-title-text {
+          font-size: 36px;
+          font-weight: 700;
+          color: #333;
+          margin: 0;
+        }
       `}</style>
 
       <header className="header">
@@ -328,7 +349,15 @@ const Contact = () => {
         
         <div className="contact-section">
           <div className="contact-info">
-            <h1>Get In Touch.</h1>
+            <div className="page-title">
+              <img 
+                src={logo} 
+                className="page-title-logo" 
+                alt="Hoopers Fits Logo" 
+              />
+              <h1 className="page-title-text">Contact Us</h1>
+            </div>
+            
             <p>Have a question about our products? Need help with your order? We're here to help!</p>
             
             <div className="contact-details">
@@ -360,7 +389,6 @@ const Contact = () => {
                   <p>(+63) 939 601 4810</p>
                 </div>
               </div>
-              {/* ✅ CLICKABLE LOCATION */}
               <div className="contact-item">
                 <div className="contact-icon">📍</div>
                 <div className="contact-text">
@@ -375,7 +403,7 @@ const Contact = () => {
                     }}
                     title="Click to view on Google Maps"
                   >
-                    Lot 3, Blk 14, Arcadia Homes Carsadang bago, Imus City, Cavite, 4103
+                    Imus City, Cavite
                   </p>
                 </div>
               </div>
