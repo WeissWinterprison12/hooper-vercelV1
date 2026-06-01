@@ -28,7 +28,6 @@ const Contact = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ Fetch user profile to get fullName
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (!user?.id) return;
@@ -38,10 +37,8 @@ const Contact = () => {
         
         if (response.ok) {
           const data = await response.json();
-          console.log("📡 Contact profile data:", data);
           setUserProfile(data);
           
-          // Pre-fill form with user data
           setFormData(prev => ({
             ...prev,
             fullname: data.fullName || data.username || "",
@@ -58,7 +55,6 @@ const Contact = () => {
     }
   }, [user]);
 
-  // ✅ USE AUTHCONTEXT (NO API CALL!)
   useEffect(() => {
     if (!user) {
       handleLogout();
@@ -70,12 +66,10 @@ const Contact = () => {
       return;
     }
 
-    console.log("✅ User:", user);
     setLoading(false);
   }, [user]);
 
   const handleLogout = () => {
-    console.log("🚪 Logging out...");
     logout();
     localStorage.removeItem("buyer_session");
     navigate("/login");
@@ -83,6 +77,11 @@ const Contact = () => {
 
   const handleFacebookRedirect = () => {
     window.open("https://www.facebook.com/share/1as5kdEkMr/", "_blank");
+  };
+
+  // ✅ CLICKABLE LOCATION - Open Google Maps
+  const handleLocationClick = () => {
+    window.open("https://www.google.com/maps/place/14%C2%B025'47.2%22N+120%C2%B055'37.6%22E/@14.4297673,120.9264603,19z/data=!3m1!4b1!4m4!3m3!8m2!3d14.429766!4d120.927104?entry=ttu&g_ep=EgoyMDI2MDUyNy4wIKXMDSoASAFQAw%3D%3D", "_blank");
   };
 
   const handleInputChange = (e) => {
@@ -105,7 +104,6 @@ const Contact = () => {
     navigate('/checkout');
   };
 
-  // ✅ FIXED - Use new backend
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -120,13 +118,9 @@ const Contact = () => {
         body: JSON.stringify({
           ...formData,
           sender_id: user.id,
-          receiver_id: 1 // Admin ID
+          receiver_id: 1
         }),
       });
-      
-      if (!response.ok) {
-        throw new Error("Failed to send message");
-      }
       
       const result = await response.json();
       
@@ -142,16 +136,13 @@ const Contact = () => {
       }
     } catch (err) {
       setError("Failed to send message. Please try again.");
-      console.error("Contact form error:", err);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ✅ Get name from userProfile (from database)
   const userName = userProfile?.fullName || userProfile?.username || "Buyer";
   
-  // ✅ Build avatar URL - use full URL from backend
   const userAvatar = userProfile?.profile_image 
     ? userProfile.profile_image
     : defaultAvatar;
@@ -163,7 +154,6 @@ const Contact = () => {
     }
   };
 
-  // ✅ Show loading while checking auth
   if (loading) {
     return (
       <div style={{
@@ -370,11 +360,23 @@ const Contact = () => {
                   <p>(+63) 939 601 4810</p>
                 </div>
               </div>
+              {/* ✅ CLICKABLE LOCATION */}
               <div className="contact-item">
                 <div className="contact-icon">📍</div>
                 <div className="contact-text">
                   <h3>Location</h3>
-                  <p>Imus City, Cavite</p>
+                  <p 
+                    onClick={handleLocationClick}
+                    style={{
+                      color: '#4267B2',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      display: 'inline-block'
+                    }}
+                    title="Click to view on Google Maps"
+                  >
+                    Lot 3, Blk 14, Arcadia Homes Carsadang bago, Imus City, Cavite, 4103
+                  </p>
                 </div>
               </div>
             </div>
