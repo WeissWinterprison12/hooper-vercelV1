@@ -1,4 +1,4 @@
-// Checkout.jsx - FIXED: Better Auth Handling
+// Checkout.jsx - FIXED: With Profile Picture from Database
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -20,8 +20,8 @@ const Checkout = () => {
   const [showReasonModal, setShowReasonModal] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   
-  // ✅ FIXED: Get user from localStorage directly
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);  // ✅ ADD THIS
   
   const [buyerInfo, setBuyerInfo] = useState({
     name: "",
@@ -29,7 +29,11 @@ const Checkout = () => {
     contact: ""
   });
 
-  // ✅ FIXED: Initialize from localStorage first
+  // ✅ SET PAGE TITLE
+  useEffect(() => {
+    document.title = "Checkout - Hooper Fits";
+  }, []);
+
   useEffect(() => {
     const sessionStr = localStorage.getItem("buyer_session");
     console.log("📡 Session from localStorage:", sessionStr);
@@ -54,6 +58,29 @@ const Checkout = () => {
     fetchBuyerInfo(session.id);
   }, []);
 
+  // ✅ FETCH USER PROFILE FOR AVATAR
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/users/${user.id}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("📡 Checkout profile data:", data);
+          setUserProfile(data);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      }
+    };
+
+    if (user?.id) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
   const fetchBuyerInfo = async (userId) => {
   try {
     console.log("📡 Fetching buyer info for:", userId);
@@ -64,7 +91,7 @@ const Checkout = () => {
     
     if (data && !data.message) {
       setBuyerInfo({
-        name: data.fullName || data.username || "Buyer",  // ✅ Full name!
+        name: data.fullName || data.username || "Buyer",
         address: data.address || "No address provided",
         contact: data.contact || "No contact provided"
       });
@@ -97,7 +124,6 @@ const Checkout = () => {
         return;
       }
       
-      // Fallback to sessionStorage
       const selectedProduct = sessionStorage.getItem('selectedProduct');
       
       if (selectedProduct) {
@@ -253,11 +279,9 @@ const Checkout = () => {
     setSelectedReason('');
   };
 
-  // Avatar
-  const userAvatar = user?.profile_image 
-    ? (user.profile_image.startsWith('http') 
-        ? user.profile_image 
-        : `${BACKEND_URL}/uploads/profiles/${user.profile_image}`)
+  // ✅ USE USERPROFILE FOR AVATAR (like buyer_home.jsx)
+  const userAvatar = userProfile?.profile_image 
+    ? userProfile.profile_image  // Backend already returns full URL!
     : defaultAvatar;
 
   const handleImageError = (e) => {
@@ -384,10 +408,12 @@ const Checkout = () => {
                   <input type="radio" name="cancelReason" value="found better price elsewhere" onChange={(e) => handleReasonSelect(e.target.value)} />
                   <span>Found better price elsewhere</span>
                 </label>
-                                <label className="reason-option">
+                <label className="reason-option">
                   <input type="radio" name="cancelReason" value="no longer need it" onChange={(e) => handleReasonSelect(e.target.value)} />
                   <span>No longer need it</span>
                 </label>
+                // CONTINUING FROM WHERE IT LEFT OFF...
+
                 <label className="reason-option">
                   <input type="radio" name="cancelReason" value="prefer different color/size" onChange={(e) => handleReasonSelect(e.target.value)} />
                   <span>Prefer different color/size</span>

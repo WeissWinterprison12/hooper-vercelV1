@@ -273,19 +273,42 @@ const BuyerDashboard = () => {
   if (loading) {
     return (
       <div style={{
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh', 
-        background: '#000', 
-        color: '#fff',
-        fontSize: '18px'
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: '#fff',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '15px',
+        zIndex: 9999
       }}>
-        Loading Dashboard...
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+        <span style={{
+          color: '#333',
+          fontSize: '18px',
+          fontWeight: '500',
+          fontFamily: 'Poppins, sans-serif'
+        }}>Loading Dashboard...</span>
+        <div style={{
+          width: '30px',
+          height: '30px',
+          border: '4px solid #f3f3f3',
+          borderTop: '4px solid #dc3545',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
       </div>
     );
   }
-
+  
   return (
     <div className="buyer-dashboard-app">
       {showProfileModal && (
