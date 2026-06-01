@@ -55,19 +55,19 @@ const Checkout = () => {
   }, []);
 
   const fetchBuyerInfo = async (userId) => {
-    try {
-      console.log("📡 Fetching buyer info for:", userId);
-      const response = await fetch(`${BACKEND_URL}/api/users/${userId}`);
-      const data = await response.json();
-      
-      console.log("📡 Buyer info:", data);
-      
-      if (data && !data.message) {
-        setBuyerInfo({
-          name: data.username || "Buyer",
-          address: data.address || "No address provided",
-          contact: data.contact || "No contact provided"
-        });
+  try {
+    console.log("📡 Fetching buyer info for:", userId);
+    const response = await fetch(`${BACKEND_URL}/api/users/${userId}`);
+    const data = await response.json();
+    
+    console.log("📡 Buyer info:", data);
+    
+    if (data && !data.message) {
+      setBuyerInfo({
+        name: data.fullName || data.username || "Buyer",  // ✅ Full name!
+        address: data.address || "No address provided",
+        contact: data.contact || "No contact provided"
+      });
       }
     } catch (err) {
       console.error("❌ Error fetching buyer info:", err);

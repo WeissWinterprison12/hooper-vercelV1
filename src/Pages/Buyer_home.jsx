@@ -316,7 +316,7 @@ const BuyerHome = () => {
               }}
               title="Go to Dashboard"
             >
-              {userName.split(' ')[0]}
+              {userName}
             </a>!
           </span>
           

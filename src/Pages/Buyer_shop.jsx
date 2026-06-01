@@ -1,4 +1,4 @@
-// buyer_shop.jsx - SIMPLIFIED: Uses AuthContext
+// buyer_shop.jsx - FIXED: Uses AuthContext + New Backend
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -11,6 +11,8 @@ import defaultAvatar from "../Images/Man.png";
 
 import "../components/buyer_shop.css";
 
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
+
 const BuyerShop = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -18,6 +20,30 @@ const BuyerShop = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+
+  // ✅ Fetch user profile to get fullName
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/users/${user.id}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("📡 Buyer shop profile data:", data);
+          setUserProfile(data);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      }
+    };
+
+    if (user?.id) {
+      fetchUserProfile();
+    }
+  }, [user]);
 
   // ✅ USE AUTHCONTEXT (NO API CALL!)
   useEffect(() => {
@@ -38,6 +64,7 @@ const BuyerShop = () => {
   const handleLogout = () => {
     console.log("🚪 Logging out...");
     logout();
+    localStorage.removeItem("buyer_session");
     navigate("/login");
   };
 
@@ -67,12 +94,13 @@ const BuyerShop = () => {
     }
   };
 
+  // ✅ FIXED - Use new backend
   const fetchProducts = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch("http://localhost/hooper_fits_api/get_all_products.php");
+      const response = await fetch(`${BACKEND_URL}/api/products`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -80,7 +108,10 @@ const BuyerShop = () => {
       
       const result = await response.json();
       
-      if (result.success) {
+      // Handle both array and {success, products} response
+      if (Array.isArray(result)) {
+        setProducts(result);
+      } else if (result.success) {
         setProducts(result.products || []);
       } else {
         setError(result.error || 'No products found');
@@ -93,12 +124,12 @@ const BuyerShop = () => {
     }
   };
 
-  // ✅ Get name from session
-  const userName = user?.name || "Buyer";
+  // ✅ Get name from userProfile (from database)
+  const userName = userProfile?.fullName || userProfile?.username || "Buyer";
   
-  // ✅ Build avatar URL from session
-  const userAvatar = user?.profile_image 
-    ? `http://localhost/hooper_fits_api/uploads/profiles/${user.profile_image}`
+  // ✅ Build avatar URL - use full URL from backend
+  const userAvatar = userProfile?.profile_image 
+    ? userProfile.profile_image
     : defaultAvatar;
 
   const handleImageError = (e) => {
@@ -171,7 +202,7 @@ const BuyerShop = () => {
               }}
               title="Go to Dashboard"
             >
-              {userName.split(' ')[0]}
+              {userName}
             </a>!
           </span>
           
@@ -229,26 +260,28 @@ const BuyerShop = () => {
               const stock = parseInt(product.stock || 0);
               const isInStock = stock > 0;
               
-              const imageUrl = product.image && product.image.trim() ? 
-                `http://localhost/hooper_fits_api/uploads/products/${product.image.trim()}` : 
-                'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+              // ✅ FIXED - Use backend URL for product images
+              const productImage = product.image || product.product_image || "";
+              const imageUrl = productImage && productImage.trim() && !productImage.startsWith("data:") && !productImage.startsWith("http")
+                ? `${BACKEND_URL}/uploads/products/${productImage.trim()}`
+                : productImage || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
               
               return (
                 <div 
-                  key={product.id || index} 
+                  key={product._id || product.id || index} 
                   className="product-card"
                   onClick={() => handleProductClick(product)}
                 >
                   <img 
                     src={imageUrl} 
-                    alt={product.product_name}
+                    alt={product.product_name || product.name}
                     className="product-image"
                     loading="lazy"
                     onError={(e) => {
                       e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
                     }}
                   />
-                  <div className="product-title">{product.product_name}</div>
+                  <div className="product-title">{product.product_name || product.name}</div>
                   <div className="product-price">
                     ₱{parseFloat(product.price || 0).toLocaleString('en-PH', { 
                       minimumFractionDigits: 2 

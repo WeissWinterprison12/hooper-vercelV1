@@ -1,4 +1,4 @@
-// Contact.jsx - SIMPLIFIED: Uses AuthContext
+// Contact.jsx - FIXED: Uses AuthContext + New Backend
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -11,11 +11,14 @@ import defaultAvatar from "../Images/Man.png";
 
 import "../components/contact.css";
 
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
+
 const Contact = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
   const [formData, setFormData] = useState({
     fullname: "",
     email: "",
@@ -24,6 +27,36 @@ const Contact = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // ✅ Fetch user profile to get fullName
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/users/${user.id}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("📡 Contact profile data:", data);
+          setUserProfile(data);
+          
+          // Pre-fill form with user data
+          setFormData(prev => ({
+            ...prev,
+            fullname: data.fullName || data.username || "",
+            email: data.email || ""
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      }
+    };
+
+    if (user?.id) {
+      fetchUserProfile();
+    }
+  }, [user]);
 
   // ✅ USE AUTHCONTEXT (NO API CALL!)
   useEffect(() => {
@@ -38,20 +71,13 @@ const Contact = () => {
     }
 
     console.log("✅ User:", user);
-
-    // Pre-fill form with user data
-    setFormData(prev => ({
-      ...prev,
-      fullname: user.name || "",
-      email: ""
-    }));
-
     setLoading(false);
   }, [user]);
 
   const handleLogout = () => {
     console.log("🚪 Logging out...");
     logout();
+    localStorage.removeItem("buyer_session");
     navigate("/login");
   };
 
@@ -79,20 +105,21 @@ const Contact = () => {
     navigate('/checkout');
   };
 
+  // ✅ FIXED - Use new backend
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setError("");
     
     try {
-      const response = await fetch("http://localhost/hooper_fits_api/process_contact.php", {
+      const response = await fetch(`${BACKEND_URL}/api/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           ...formData,
-          sender_id: parseInt(user.id),
+          sender_id: user.id,
           receiver_id: 1 // Admin ID
         }),
       });
@@ -103,11 +130,15 @@ const Contact = () => {
       
       const result = await response.json();
       
-      if (result.success) {
+      if (result.success || result._id) {
         setSuccess(true);
-        setFormData({ fullname: user.name, email: formData.email, message: "" });
+        setFormData({ 
+          fullname: userProfile?.fullName || userProfile?.username || "", 
+          email: userProfile?.email || "", 
+          message: "" 
+        });
       } else {
-        setError(result.error || "Failed to send message");
+        setError(result.error || result.message || "Failed to send message");
       }
     } catch (err) {
       setError("Failed to send message. Please try again.");
@@ -117,12 +148,12 @@ const Contact = () => {
     }
   };
 
-  // ✅ Get name from session
-  const userName = user?.name || "Buyer";
+  // ✅ Get name from userProfile (from database)
+  const userName = userProfile?.fullName || userProfile?.username || "Buyer";
   
-  // ✅ Build avatar URL from session
-  const userAvatar = user?.profile_image 
-    ? `http://localhost/hooper_fits_api/uploads/profiles/${user.profile_image}`
+  // ✅ Build avatar URL - use full URL from backend
+  const userAvatar = userProfile?.profile_image 
+    ? userProfile.profile_image
     : defaultAvatar;
 
   const handleImageError = (e) => {
@@ -278,7 +309,7 @@ const Contact = () => {
               }}
               title="Go to Dashboard"
             >
-              {userName.split(' ')[0]}
+              {userName}
             </a>!
           </span>
           
