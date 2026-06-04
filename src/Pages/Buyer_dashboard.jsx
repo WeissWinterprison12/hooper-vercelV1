@@ -369,8 +369,8 @@ const BuyerDashboard = () => {
         
         <ul>
           <li><a className="active" href="#">📊 Dashboard</a></li>
-          <li><a href="#">📦 Orders</a></li>
-          <li><a href="#">🛒 Cart</a></li>
+          <li><a href="/buyer_orders">📦 Orders</a></li>
+          <li><a href="/checkout">🛒 Cart</a></li>
           <li><a href="#" onClick={() => setShowMessageModal(true)}>💬 Messages</a></li>
           <li><a href="#">⚙️ Settings</a></li>
           <br /><br /><br />
@@ -417,7 +417,10 @@ const BuyerDashboard = () => {
               <div className="small-card" onClick={() => setShowMessageModal(true)}>
                 <h3>💬</h3><p>Need Help? Message Us</p>
               </div>
-              <div className="small-card"><h3>⭐</h3><p>Review Orders</p></div>
+              <div className="small-card" onClick={() => navigate('/buyer_orders')}>
+                <h3>⭐</h3>
+                <p>Review Orders</p>
+              </div>
             </div>
             <div className="activity"><h4>📈 Spending Trend</h4><div className="chart-placeholder">Spending Chart Coming Soon</div></div>
             <div className="orders">
