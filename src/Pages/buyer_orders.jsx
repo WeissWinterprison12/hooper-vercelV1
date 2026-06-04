@@ -18,12 +18,10 @@ const BuyerOrders = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
 
-  // ✅ SET PAGE TITLE
   useEffect(() => {
     document.title = "My Orders - Hooper Fits";
   }, []);
 
-  // Initialize page
   useEffect(() => {
     const initializePage = async () => {
       try {
@@ -56,7 +54,6 @@ const BuyerOrders = () => {
     initializePage();
   }, [navigate]);
 
-  // Fetch Profile from MongoDB
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
@@ -170,7 +167,7 @@ const BuyerOrders = () => {
 
   return (
     <div className="buyer-dashboard-app">
-      {/* SIDEBAR */}
+
       <div className="sidebar">
         <div className="admin-profile">
           <div className="profile-avatar">
