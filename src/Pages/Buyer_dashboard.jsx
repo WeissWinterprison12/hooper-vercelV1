@@ -33,7 +33,6 @@ const BuyerDashboard = () => {
     avatar: defaultAvatar
   });
 
-  // Initialize dashboard
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
@@ -89,7 +88,7 @@ const BuyerDashboard = () => {
         if (data.profile_image.startsWith("http")) {
           avatarUrl = data.profile_image;
         } 
-        // If it's a relative path, add the backend URL
+
         else {
           avatarUrl = `https://hooper-renderv1-4.onrender.com${data.profile_image}`;
         }
@@ -364,7 +363,7 @@ const BuyerDashboard = () => {
             )}
           </div>
           <p className="profile-name">{getDisplayName()}</p>
-          <p className="profile-username">{getDisplayUsername()}</p>
+          <p className="profile-username">@{getDisplayUsername()}</p>
         </div>
         
         <ul>

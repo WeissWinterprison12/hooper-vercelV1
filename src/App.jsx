@@ -18,7 +18,7 @@ import Contact from "./Pages/contact";
 import BuyerHome from "./Pages/Buyer_home";
 import BuyerShop from "./Pages/Buyer_shop";
 import BuyerDashboard from "./Pages/Buyer_dashboard";
-import BuyerOrders from "./Pages/Buyer_orders";
+import BuyerOrders from "./Pages/buyer_orders";
 import Checkout from "./Pages/checkout";
 
 import SellerDashboard from "./Pages/seller_dashboard";
