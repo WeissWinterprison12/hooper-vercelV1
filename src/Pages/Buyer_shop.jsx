@@ -1,4 +1,4 @@
-// buyer_shop.jsx - FIXED: Uses AuthContext + New Backend
+// buyer_shop.jsx - UPDATED: Shows only in-stock products from sellers
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -94,7 +94,7 @@ const BuyerShop = () => {
     }
   };
 
-  // ✅ FIXED - Use new backend
+  // ✅ FETCH PRODUCTS - Only in-stock items
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -109,13 +109,23 @@ const BuyerShop = () => {
       const result = await response.json();
       
       // Handle both array and {success, products} response
+      let allProducts = [];
       if (Array.isArray(result)) {
-        setProducts(result);
+        allProducts = result;
       } else if (result.success) {
-        setProducts(result.products || []);
+        allProducts = result.products || [];
       } else {
         setError(result.error || 'No products found');
       }
+      
+      // ✅ FILTER: Only show products with stock > 0
+      const inStockProducts = allProducts.filter(product => {
+        const stock = parseInt(product.stock || 0);
+        return stock > 0;
+      });
+      
+      setProducts(inStockProducts);
+      
     } catch (error) {
       console.error('❌ Error:', error);
       setError('Failed to load products');
@@ -127,16 +137,14 @@ const BuyerShop = () => {
   // ✅ Get name from userProfile (from database)
   const userName = userProfile?.fullName || userProfile?.username || "Buyer";
   
-  // ✅ Build avatar URL - use full URL from backend
-  const userAvatar = userProfile?.profile_image 
+  // ✅ Build avatar URL - properly check for valid profile image
+  const userAvatar = (userProfile?.profile_image && userProfile.profile_image.trim() !== "") 
     ? userProfile.profile_image
     : defaultAvatar;
 
-  const handleImageError = (e) => {
-    e.target.style.display = 'none';
-    if (e.target.parentNode) {
-      e.target.parentNode.innerHTML = '👤';
-    }
+  const handleAvatarError = (e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
   };
 
   if (loading && !user) {
@@ -212,7 +220,7 @@ const BuyerShop = () => {
             alt="Profile"
             title="Go to Dashboard"
             onClick={handleProfileClick}
-            onError={handleImageError}
+            onError={handleAvatarError}
           />
 
           <div 
@@ -260,11 +268,26 @@ const BuyerShop = () => {
               const stock = parseInt(product.stock || 0);
               const isInStock = stock > 0;
               
-              // ✅ FIXED - Use backend URL for product images
-              const productImage = product.image || product.product_image || "";
-              const imageUrl = productImage && productImage.trim() && !productImage.startsWith("data:") && !productImage.startsWith("http")
-                ? `${BACKEND_URL}/uploads/products/${productImage.trim()}`
-                : productImage || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+              // ✅ FIXED - Handle product image URL properly
+              let imageUrl = '';
+              
+              if (product.image) {
+                // If it's a full URL, use it
+                if (product.image.startsWith('http')) {
+                  imageUrl = product.image;
+                } 
+                // If it's a base64 data URL, use it
+                else if (product.image.startsWith('data:')) {
+                  imageUrl = product.image;
+                }
+                // Otherwise, prepend backend URL
+                else {
+                  imageUrl = `${BACKEND_URL}${product.image}`;
+                }
+              } else {
+                // Default placeholder
+                imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+              }
               
               return (
                 <div 

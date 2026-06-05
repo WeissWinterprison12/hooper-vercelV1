@@ -1,18 +1,28 @@
-// seller_product.jsx - UPDATED: Same auth as seller_dashboard + Profile functionality
-import React, { useState, useEffect } from 'react';
+// seller_product.jsx
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import "../components/seller_product.css";
 import logo from "../Images/HoopersFits.png";
 import defaultAvatar from "../Images/Man.png";
 
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
+
 const SellerProduct = () => {
-  const { user, logout, updateUser } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   
   const [sellerId, setSellerId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [adminProfile, setAdminProfile] = useState({ name: "", avatar: null });
+  
+  // Profile State
+  const [profile, setProfile] = useState({
+    fullName: "",
+    username: "",
+    avatar: defaultAvatar
+  });
+  
+  // Products State
   const [products, setProducts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   
@@ -23,19 +33,21 @@ const SellerProduct = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   
-  // Files & Preview
+  // Profile Modal State
+  const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [editedName, setEditedName] = useState("");
-  
+  const [uploading, setUploading] = useState(false);
+
   // Product forms
-  const [newProduct, setNewProduct] = useState({ product_name: '', description: '', price: '', stock: '' });
+  const [newProduct, setNewProduct] = useState({ product_name: '', description: '', category: '', price: '', stock: '' });
   const [newProductPrice, setNewProductPrice] = useState('0.00');
   const [newProductPriceDisplay, setNewProductPriceDisplay] = useState('0.00');
   const [newProductPreview, setNewProductPreview] = useState(null);
   const [newProductHasImage, setNewProductHasImage] = useState(false);
   
-  const [editProduct, setEditProduct] = useState({ id: '', product_name: '', description: '', price: '', stock: '', image: '' });
+  const [editProduct, setEditProduct] = useState({ id: '', product_name: '', description: '', category: '', price: '', stock: '', image: '' });
   const [editProductPrice, setEditProductPrice] = useState('0.00');
   const [editProductPriceDisplay, setEditProductPriceDisplay] = useState('0.00');
   const [editProductPreview, setEditProductPreview] = useState(null);
@@ -46,9 +58,7 @@ const SellerProduct = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
 
-  // =====================================================
   // ✅ SAME AUTH AS SELLER_DASHBOARD
-  // =====================================================
   useEffect(() => {
     const initialize = async () => {
       try {
@@ -61,17 +71,16 @@ const SellerProduct = () => {
 
         const session = JSON.parse(sessionStr);
 
-        if (session.role !== "seller") {
+        if (session.role !== "seller" && session.role !== "admin") {
           handleLogout();
           return;
         }
 
-        setSellerId(session.id);
-        setAdminProfile(prev => ({ ...prev, name: session.name || "Seller" }));
-        setEditedName(session.name || "Seller");
+        const id = session.id;
+        setSellerId(id);
         
-        await fetchProfile(session.id);
-        await fetchProducts(session.id);
+        await fetchProfile(id);
+        await fetchProducts(id);
         
       } catch (error) {
         console.error("❌ Auth error:", error);
@@ -90,153 +99,152 @@ const SellerProduct = () => {
     navigate("/login");
   };
 
-  // =====================================================
-  // ✅ FETCH PROFILE FROM DATABASE
-  // =====================================================
+  // ✅ FETCH PROFILE FROM MONGODB
   const fetchProfile = async (id) => {
     try {
-      const response = await fetch(`http://localhost/hooper_fits_api/get_seller_profile.php?id=${id}`);
+      const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
       const data = await response.json();
 
       console.log("📡 Profile data:", data);
 
-      if (!data.error) {
-        let avatarUrl = defaultAvatar;
-        
-        if (data.profile_image && data.profile_image !== 'default-avatar.png') {
-          avatarUrl = `http://localhost/hooper_fits_api/uploads/profiles/${data.profile_image}`;
+      let avatarUrl = defaultAvatar;
+      
+      if (data.profile_image) {
+        if (data.profile_image.startsWith("http")) {
+          avatarUrl = data.profile_image;
+        } else {
+          avatarUrl = `${BACKEND_URL}${data.profile_image}`;
         }
-        
-        setAdminProfile({
-          name: data.name || "Seller",
-          avatar: avatarUrl
-        });
-        setEditedName(data.name || "Seller");
       }
+        
+      setProfile({
+        fullName: data.fullName || data.username || "",
+        username: data.username || "",
+        avatar: avatarUrl
+      });
+      setEditedName(data.fullName || data.username || "");
+      
     } catch (err) {
       console.error("❌ Error fetching profile:", err);
+      setProfile({ fullName: "", username: "", avatar: defaultAvatar });
     }
   };
 
-  // =====================================================
-  // ✅ FETCH PRODUCTS
-  // =====================================================
   const fetchProducts = async (id) => {
-    try {
-      const response = await fetch(`http://localhost/hooper_fits_api/get_seller_products.php?seller_id=${id}`);
-      const result = await response.json();
-      
-      if (result.success) {
-        setProducts(result.products || []);
-      } else {
-        setProducts([]);
-      }
-    } catch (error) {
-      console.error("❌ Fetch error:", error);
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/products/seller/${id}`);
+    const result = await response.json();
+    
+    console.log("📡 Products:", result);
+    
+    if (result.success) {
+      setProducts(result.products || []);
+    } else {
       setProducts([]);
     }
-  };
+  } catch (error) {
+    console.error("❌ Error:", error);
+    setProducts([]);
+  }
+};
 
-  // =====================================================
-  // ✅ PROFILE FUNCTIONS (UPDATE PROFILE)
-  // =====================================================
-  const handleFileSelect = (e) => {
+  const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
+    
     if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image too large! Please select an image under 2MB.");
+        return;
+      }
+      
       setSelectedFile(file);
-      setPreviewImage(URL.createObjectURL(file));
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPreviewImage(event.target.result);
+      };
+      reader.readAsDataURL(file);
     }
-  };
+  }, []);
 
-  const openFileExplorer = () => {
-    document.querySelector(".profile-file-input")?.click();
-  };
-
-  const handleSaveProfile = async () => {
-    if (!sellerId) return;
-
-    const nameChanged = editedName !== adminProfile.name.trim();
-    const imageChanged = !!selectedFile;
-
-    if (!nameChanged && !imageChanged) {
-      setShowProfileModal(false);
-      return;
+  const openFileExplorer = useCallback(() => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
     }
+  }, []);
 
-    let success = true;
-    let newAvatarUrl = adminProfile.avatar;
-
-    // Update name
-    if (nameChanged) {
-      try {
-        const response = await fetch("http://localhost/hooper_fits_api/update_profile_name.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: sellerId, name: editedName })
-        });
-        const result = await response.json();
-
-        if (result.success) {
-          setAdminProfile(prev => ({ ...prev, name: editedName }));
-          // ✅ Update session
-          updateUser({ name: editedName });
-        } else {
-          showErrorModalFunc(`❌ ${result.error}`);
-          success = false;
-        }
-      } catch (error) {
-        showErrorModalFunc("❌ Name update error");
-        success = false;
-      }
-    }
-
-    // Upload image
-    if (imageChanged && success) {
-      const formData = new FormData();
-      formData.append("profile_image", selectedFile);
-      formData.append("user_id", sellerId);
-
-      try {
-        const response = await fetch("http://localhost/hooper_fits_api/update_profile.php", {
-          method: "POST",
-          body: formData
-        });
-        const result = await response.json();
-
-        if (result.success && result.image) {
-          const avatarFilename = result.image.split('/').pop();
-          newAvatarUrl = `http://localhost/hooper_fits_api/uploads/profiles/${avatarFilename}`;
-          setAdminProfile(prev => ({ ...prev, avatar: newAvatarUrl }));
-          // ✅ Update session
-          updateUser({ profile_image: avatarFilename });
-        } else {
-          showErrorModalFunc(`❌ ${result.error}`);
-          success = false;
-        }
-      } catch (error) {
-        showErrorModalFunc("❌ Image upload error");
-        success = false;
-      }
-    }
-
-    if (success) {
-      setShowProfileModal(false);
-      setSelectedFile(null);
-      setPreviewImage(null);
-      showSuccessModalFunc("✅ Profile updated!");
-    }
-  };
-
-  const handleCancelProfile = () => {
+  const handleCancelProfile = useCallback(() => {
     setShowProfileModal(false);
     setSelectedFile(null);
     setPreviewImage(null);
-    setEditedName(adminProfile.name);
-  };
+    setEditedName(profile.fullName || profile.username || "");
+  }, [profile.fullName, profile.username]);
 
-  // =====================================================
+  const handleSaveProfile = useCallback(async () => {
+    if (!sellerId) {
+      alert("No user ID found. Please login again.");
+      return;
+    }
+
+    const newName = editedName && editedName.trim() ? editedName.trim() : profile.fullName || profile.username;
+
+    if (!newName) {
+      alert("Please enter a name.");
+      return;
+    }
+
+    console.log("📡 Saving profile...", { sellerId, newName });
+
+    try {
+      setUploading(true);
+      
+      const response = await fetch(`${BACKEND_URL}/api/users/${sellerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName: newName })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || "Failed to update name");
+      }
+      
+      const result = await response.json();
+      console.log("📡 Name saved:", result);
+
+      if (selectedFile) {
+        const imageFormData = new FormData();
+        imageFormData.append("profile_image", selectedFile);
+
+        const imageResponse = await fetch(`${BACKEND_URL}/api/users/${sellerId}/image`, {
+          method: "PUT",
+          body: imageFormData
+        });
+
+        if (!imageResponse.ok) {
+          console.log("⚠️ Image upload failed, but name was saved");
+        } else {
+          const imageResult = await imageResponse.json();
+          console.log("📡 Image saved:", imageResult);
+        }
+      }
+      
+      await fetchProfile(sellerId);
+      alert("Profile updated successfully!");
+      
+    } catch (err) {
+      console.error("❌ Save error:", err);
+      alert(`Failed to update profile: ${err.message}`);
+    } finally {
+      setUploading(false);
+      setShowProfileModal(false);
+      setSelectedFile(null);
+      setPreviewImage(null);
+    }
+  }, [sellerId, editedName, profile, selectedFile]);
+
   // ✅ PRODUCT FUNCTIONS
-  // =====================================================
   const handleProductFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -257,7 +265,7 @@ const SellerProduct = () => {
     const input = inputValue.replace(/[^0-9]/g, '');
     if (input === '') {
       setPriceState('0.00');
-      setDisplayState('0.00');
+      if (setDisplayState) setDisplayState('0.00');
       return;
     }
 
@@ -274,22 +282,12 @@ const SellerProduct = () => {
 
     const formattedPrice = parseFloat(newPrice).toFixed(2);
     setPriceState(formattedPrice);
-    setDisplayState(formattedPrice);
+    if (setDisplayState) setDisplayState(formattedPrice);
   };
 
   const handleNumberChange = (value, min = 1) => {
     const numValue = parseFloat(value) || 0;
     return Math.max(min, numValue).toString();
-  };
-
-  const validateForm = (formData, priceState, isEdit = false) => {
-    const errors = [];
-    if (!formData.product_name?.trim()) errors.push('Product name is required');
-    if (!priceState || parseFloat(priceState) <= 0) errors.push('Price must be > 0');
-    const stockValue = parseInt(formData.stock) || 0;
-    if (!formData.stock || stockValue <= 0) errors.push('Stock must be > 0');
-    if (!isEdit && !newProductHasImage) errors.push('Product image is required');
-    return errors;
   };
 
   const showSuccessModalFunc = (message) => {
@@ -305,48 +303,73 @@ const SellerProduct = () => {
   };
 
   const handleAddProduct = async () => {
-    const errors = validateForm(newProduct, newProductPrice, false);
-    if (errors.length > 0) {
-      showErrorModalFunc(`❌ ${errors[0]}`);
-      return;
-    }
+  if (!newProduct.product_name?.trim()) {
+    showErrorModalFunc("❌ Product name is required");
+    return;
+  }
+  if (!newProductPrice || parseFloat(newProductPrice) <= 0) {
+    showErrorModalFunc("❌ Price must be greater than 0");
+    return;
+  }
+  const stockValue = parseInt(newProduct.stock) || 0;
+  if (!newProduct.stock || stockValue <= 0) {
+    showErrorModalFunc("❌ Stock must be greater than 0");
+    return;
+  }
 
-    const formData = new FormData();
-    formData.append('seller_id', sellerId);
-    formData.append('product_name', newProduct.product_name);
-    formData.append('description', newProduct.description);
-    formData.append('price', newProductPrice);
-    formData.append('stock', newProduct.stock);
+  const formData = new FormData();
+  formData.append('seller_id', sellerId);
+  formData.append('product_name', newProduct.product_name);
+  formData.append('description', newProduct.description);
+  formData.append('category', newProduct.category || 'general');
+  formData.append('price', newProductPrice);
+  formData.append('stock', newProduct.stock);
+  
+  const fileInput = document.getElementById('product-image');
+  if (fileInput?.files[0]) {
+    formData.append('image', fileInput.files[0]);  // ✅ Removed extra ]
+  }
+
+  // Debug: Log all FormData entries
+  for (let pair of formData.entries()) {
+    console.log("📤 FormData:", pair[0], pair[1]);
+  }
+
+  try {
+    setLoading(true);
     
-    const fileInput = document.getElementById('product-image');
-    if (fileInput?.files[0]) {
-      formData.append('image', fileInput.files[0]);
+    console.log("📤 Sending to:", `${BACKEND_URL}/api/products`);
+    
+    const response = await fetch(`${BACKEND_URL}/api/products`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    
+    console.log("📥 Response:", result);
+    
+    if (result.success && result.product) {
+      closeAddProductModal();
+      await fetchProducts(sellerId);  // ✅ Added await
+      showSuccessModalFunc('✅ Product added!');
+    } else {
+      showErrorModalFunc(`❌ ${result.message || "Failed to add product"}`);
     }
-
-    try {
-      const response = await fetch('http://localhost/hooper_fits_api/add_product.php', {
-        method: 'POST',
-        body: formData
-      });
-      const result = await response.json();
-      
-      if (result.success) {
-        closeAddProductModal();
-        fetchProducts(sellerId);
-        showSuccessModalFunc('✅ Product added!');
-      } else {
-        showErrorModalFunc(`❌ ${result.error}`);
-      }
-    } catch (error) {
-      showErrorModalFunc('❌ Network error');
-    }
-  };
+  } catch (error) {
+    console.error("❌ Network error:", error);
+    showErrorModalFunc('❌ Network error');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleEditClick = (product) => {
     setEditProduct({
-      id: product.id || product.product_id,
-      product_name: product.product_name || product.name || '',
+      id: product._id || product.id,
+      product_name: product.product_name || '',
       description: product.description || '',
+      category: product.category || '',
       price: product.price || '',
       stock: product.stock || '',
       image: product.image || ''
@@ -354,11 +377,15 @@ const SellerProduct = () => {
     
     const priceStr = (product.price || '0').toString();
     setEditProductPrice(priceStr);
-    setEditProductPriceDisplay(priceStr);
+    setEditProductPriceDisplay(priceStr); 
     
     let imageUrl = null;
     if (product.image) {
-      imageUrl = `http://localhost/hooper_fits_api/uploads/products/${product.image}`;
+      if (product.image.startsWith("http")) {
+        imageUrl = product.image;
+      } else {
+        imageUrl = `${BACKEND_URL}${product.image}`;
+      }
     }
     setEditProductPreview(imageUrl);
     setEditProductHasImage(!!imageUrl);
@@ -367,17 +394,24 @@ const SellerProduct = () => {
   };
 
   const handleEditProduct = async () => {
-    const errors = validateForm(editProduct, editProductPrice, true);
-    if (errors.length > 0) {
-      showErrorModalFunc(`❌ ${errors[0]}`);
+    if (!editProduct.product_name?.trim()) {
+      showErrorModalFunc("❌ Product name is required");
+      return;
+    }
+    if (!editProductPrice || parseFloat(editProductPrice) <= 0) {
+      showErrorModalFunc("❌ Price must be greater than 0");
+      return;
+    }
+    const stockValue = parseInt(editProduct.stock) || 0;
+    if (!editProduct.stock || stockValue <= 0) {
+      showErrorModalFunc("❌ Stock must be greater than 0");
       return;
     }
 
     const formData = new FormData();
-    formData.append('product_id', editProduct.id);
-    formData.append('seller_id', sellerId);
     formData.append('product_name', editProduct.product_name);
     formData.append('description', editProduct.description);
+    formData.append('category', editProduct.category || 'general');
     formData.append('price', editProductPrice);
     formData.append('stock', editProduct.stock);
     
@@ -387,18 +421,18 @@ const SellerProduct = () => {
     }
 
     try {
-      const response = await fetch('http://localhost/hooper_fits_api/edit_product.php', {
-        method: 'POST',
+      const response = await fetch(`${BACKEND_URL}/api/products/${editProduct.id}`, {
+        method: "PUT",
         body: formData
       });
       const result = await response.json();
       
-      if (result.success) {
+      if (result.success && result.product) {
         closeEditProductModal();
         fetchProducts(sellerId);
         showSuccessModalFunc('✅ Product updated!');
       } else {
-        showErrorModalFunc(`❌ ${result.error}`);
+        showErrorModalFunc(`❌ ${result.message || "Failed to update product"}`);
       }
     } catch (error) {
       showErrorModalFunc('❌ Network error');
@@ -414,24 +448,19 @@ const SellerProduct = () => {
     if (!productToDelete || !sellerId) return;
     
     try {
-      const response = await fetch('http://localhost/hooper_fits_api/delete_product.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_id: productToDelete.id || productToDelete.product_id,
-          seller_id: sellerId
-        })
+      const response = await fetch(`${BACKEND_URL}/api/products/${productToDelete._id}`, {
+        method: 'DELETE'
       });
       
       const result = await response.json();
       
-      if (result.success) {
-        setProducts(prevProducts => prevProducts.filter(p => p.id !== productToDelete.id));
+      if (result.success || result.message?.includes("deleted")) {
+        setProducts(prevProducts => prevProducts.filter(p => p._id !== productToDelete._id));
         setShowDeleteModal(false);
         setProductToDelete(null);
         showSuccessModalFunc('✅ Product deleted!');
       } else {
-        showErrorModalFunc(`❌ ${result.error}`);
+        showErrorModalFunc(`❌ ${result.message || "Failed to delete"}`);
       }
     } catch (error) {
       showErrorModalFunc('❌ Network error');
@@ -447,7 +476,7 @@ const SellerProduct = () => {
 
   const closeAddProductModal = () => {
     setShowAddProductModal(false);
-    setNewProduct({ product_name: '', description: '', price: '', stock: '' });
+    setNewProduct({ product_name: '', description: '', category: '', price: '', stock: '' });
     setNewProductPrice('0.00');
     setNewProductPriceDisplay('0.00');
     setNewProductPreview(null);
@@ -456,15 +485,21 @@ const SellerProduct = () => {
 
   const closeEditProductModal = () => {
     setShowEditProductModal(false);
-    setEditProduct({ id: '', product_name: '', description: '', price: '', stock: '', image: '' });
+    setEditProduct({ id: '', product_name: '', description: '', category: '', price: '', stock: '', image: '' });
     setEditProductPrice('0.00');
     setEditProductPriceDisplay('0.00');
     setEditProductPreview(null);
     setEditProductHasImage(false);
   };
 
-  // Display avatar
-  const displayAvatar = previewImage || adminProfile.avatar || defaultAvatar;
+  // Handle avatar error
+  const handleAvatarError = (e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
+  };
+
+   // Display avatar
+  const displayAvatar = previewImage || profile.avatar || defaultAvatar;
 
   // Pagination
   const itemsPerPage = 10;
@@ -472,9 +507,7 @@ const SellerProduct = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentProducts = products.slice(startIndex, startIndex + itemsPerPage);
 
-  // =====================================================
   // ✅ LOADING SCREEN
-  // =====================================================
   if (loading || !sellerId) {
     return (
       <div className="seller-product-app" style={{display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#000', color: '#fff'}}>
@@ -485,26 +518,19 @@ const SellerProduct = () => {
 
   return (
     <div className="seller-product-app">
-      {/* =====================================================
-          ✅ PROFILE MODAL
-        ===================================================== */}
+      {/* ✅ PROFILE MODAL */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfile}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-modal" onClick={handleCancelProfile}>×</button>
             
             <div className="modal-image-upload" onClick={openFileExplorer}>
-              {previewImage ? (
-                <img src={previewImage} alt="Preview" />
-              ) : displayAvatar ? (
-                <img src={displayAvatar} alt="Profile" onError={(e) => e.target.style.display = 'none'} />
+              {previewImage || profile.avatar ? (
+                <img src={previewImage || profile.avatar} alt="Preview" onError={handleAvatarError} />
               ) : (
-                <div className="no-image-placeholder">
-                  <span>👤</span>
-                  <p>Click to add profile image</p>
-                </div>
+                <div className="question-mark-avatar">?</div>
               )}
-                            <input className="profile-file-input" type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
             </div>
 
             <h2 className="modal-title">Update Profile</h2>
@@ -521,15 +547,15 @@ const SellerProduct = () => {
               />
             </div>
 
-            <button className="get-image-btn" onClick={handleSaveProfile}>💾 Save Changes</button>
+            <button className="get-image-btn" onClick={handleSaveProfile} disabled={uploading}>
+              {uploading ? "⏳ Saving..." : "💾 Save Changes"}
+            </button>
             <button className="cancel-btn" onClick={handleCancelProfile}>Cancel</button>
           </div>
         </div>
       )}
 
-      {/* =====================================================
-          ✅ ADD PRODUCT MODAL
-        ===================================================== */}
+      {/* ✅ ADD PRODUCT MODAL */}
       {showAddProductModal && (
         <div className="add-product-modal" onClick={closeAddProductModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -548,9 +574,7 @@ const SellerProduct = () => {
             </div>
 
             <h2 className="modal-title">Add New Product</h2>
-            <p className="modal-subtitle">
-              Fill in details <span className="required-note">* All fields required</span>
-            </p>
+            <p className="modal-subtitle">Fill in details <span className="required-note">* All fields required</span></p>
 
             <div className="product-form-group">
               <label>Product Name <span className="required">*</span></label>
@@ -579,9 +603,7 @@ const SellerProduct = () => {
         </div>
       )}
 
-      {/* =====================================================
-          ✅ EDIT PRODUCT MODAL
-        ===================================================== */}
+      {/* ✅ EDIT PRODUCT MODAL */}
       {showEditProductModal && (
         <div className="add-product-modal" onClick={closeEditProductModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -622,25 +644,23 @@ const SellerProduct = () => {
               </div>
             </div>
 
-            <button className="get-image-btn" onClick={handleEditProduct}>📝 Update Product</button>
+            <button className="get-image-btn" onClick={handleEditProduct}>Update Product</button>
             <button className="cancel-btn" onClick={closeEditProductModal}>Cancel</button>
           </div>
         </div>
       )}
 
-      {/* =====================================================
-          ✅ SIDEBAR
-        ===================================================== */}
+      {/* ✅ SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
           <div className="profile-avatar" onClick={() => setShowProfileModal(true)}>
-            {displayAvatar ? (
-              <img src={displayAvatar} alt="Profile" onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>'; }} />
+            {displayAvatar && displayAvatar !== defaultAvatar ? (
+              <img src={displayAvatar} alt="Profile" onError={handleAvatarError} />
             ) : (
               <div className="question-mark-avatar">?</div>
             )}
           </div>
-          <p className="profile-name">{adminProfile.name || "Set your name"}</p>
+          <p className="profile-name">{profile.fullName || profile.username || "Set your name"}</p>
         </div>
         
         <ul>
@@ -658,9 +678,7 @@ const SellerProduct = () => {
         </div>
       </div>
 
-      {/* =====================================================
-          ✅ MAIN CONTENT
-        ===================================================== */}
+      {/* ✅ MAIN CONTENT */}
       <div className="main">
         <div className="top-bar">
           <h1>📦 Product Management</h1>
@@ -706,13 +724,13 @@ const SellerProduct = () => {
                   {currentProducts.map((product, index) => {
                     const badge = getStatusBadge(product.stock);
                     return (
-                      <tr key={product.id || index}>
-                        <td className="product-name-cell">{product.product_name || product.name}</td>
+                      <tr key={product._id || index}>
+                        <td className="product-name-cell">{product.product_name}</td>
                         <td className="stock-cell">{product.stock || 0}</td>
                         <td className="price-cell">₱{parseFloat(product.price || 0).toLocaleString()}</td>
                         <td><span className={`status-badge ${badge.class}`}>{badge.text}</span></td>
                         <td className="actions">
-                          <button onClick={() => handleEditClick(product)}>✏️ Edit</button>
+                          <button onClick={() => handleEditClick(product)}>Edit</button>
                           <button className="delete" onClick={() => handleDeleteClick(product)}>🗑️</button>
                         </td>
                       </tr>
@@ -733,16 +751,14 @@ const SellerProduct = () => {
         </div>
       </div>
 
-      {/* =====================================================
-          ✅ DELETE MODAL
-        ===================================================== */}
+      {/* ✅ DELETE MODAL */}
       {showDeleteModal && productToDelete && (
         <div className="delete-modal" onClick={() => setShowDeleteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-modal" onClick={() => setShowDeleteModal(false)}>×</button>
             <div className="delete-icon">🗑️</div>
             <h2>Delete Product?</h2>
-            <p>Delete <strong>"{productToDelete.product_name || productToDelete.name}"</strong>?</p>
+            <p>Delete <strong>"{productToDelete.product_name}"</strong>?</p>
             <div className="delete-button-group">
               <button className="delete-confirm-btn" onClick={confirmDelete}>Yes, Delete</button>
               <button className="delete-cancel-btn" onClick={() => setShowDeleteModal(false)}>Cancel</button>
@@ -751,9 +767,7 @@ const SellerProduct = () => {
         </div>
       )}
 
-      {/* =====================================================
-          ✅ NOTIFICATIONS
-        ===================================================== */}
+      {/* ✅ NOTIFICATIONS */}
       {showSuccessModal && (
         <div className="notification-modal success">
           <div>✅</div>

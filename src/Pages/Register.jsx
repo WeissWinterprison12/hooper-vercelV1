@@ -1,4 +1,4 @@
-// register.jsx - WITH ROLE SELECTION
+// register.jsx - WITHOUT ROLE
 import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../Images/HoopersFits.png";
@@ -20,7 +20,6 @@ const Register = () => {
     "What is your favorite childhood book?"
   ]);
 
-  // ✅ ADD role to formData
   const [formData, setFormData] = useState({
     fullName: "",
     month: "",
@@ -28,7 +27,6 @@ const Register = () => {
     year: "",
     address: "",
     contact: "",
-    role: "buyer", // Default role is buyer
     security_question: "",
     security_answer: ""
   });
@@ -119,7 +117,6 @@ const Register = () => {
     const email = e.target.email.value.trim();
     const password = e.target.password.value;
     const confirmPassword = e.target.confirmPassword.value;
-    const role = e.target.role.value; // ✅ GET ROLE VALUE
 
     if (!validate(username, password, confirmPassword)) return;
 
@@ -133,7 +130,7 @@ const Register = () => {
           username,
           email,
           password,
-          role: role, // ✅ SEND ROLE (buyer or seller)
+          role: "buyer",
 
           fullName: formData.fullName,
           birthday: {
@@ -184,7 +181,7 @@ const Register = () => {
         .hero-content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; min-height: 88vh; padding: 0 80px; }
         .text-section h2 { font-size: 38px; margin: 0; text-transform: uppercase; }
         .text-section h2:first-child { color: #dc3545; }
-        .register-section { width: 360px; height: 460px; background: rgba(255,255,255,0.95); color: #333; border-radius: 12px; padding: 20px; backdrop-filter: blur(6px); display: flex; flex-direction: column; transition: all 0.4s ease; overflow: hidden; }
+        .register-section { width: 360px; height: 420px; background: rgba(255,255,255,0.95); color: #333; border-radius: 12px; padding: 20px; backdrop-filter: blur(6px); display: flex; flex-direction: column; transition: all 0.4s ease; overflow: hidden; }
         .form-scroll { flex: 1; overflow-y: auto; padding-right: 5px; scrollbar-width: thin; scrollbar-color: #ccc transparent; }
         .form-scroll::-webkit-scrollbar { width: 4px; }
         .form-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -299,14 +296,6 @@ const Register = () => {
                   <input type="text" name="security_answer" value={formData.security_answer} onChange={handleChangeExtra} />
                 </div>
               )}
-
-              <div className="form-group">
-                <label>Role</label>
-                <select name="role" value={formData.role} onChange={handleChangeExtra}>
-                  <option value="buyer">Buyer</option>
-                  <option value="seller">Seller</option>
-                </select>
-              </div>
 
               <div className="form-group">
                 <label>Password<span className="tooltip" title="8-20 characters with uppercase, lowercase, and number. No special characters">?</span></label>

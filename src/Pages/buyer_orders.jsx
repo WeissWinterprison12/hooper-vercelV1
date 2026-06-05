@@ -125,7 +125,6 @@ const BuyerOrders = () => {
     return userProfile?.avatar || defaultAvatar;
   };
 
-  // Loading Screen
   if (loading) {
     return (
       <div style={{

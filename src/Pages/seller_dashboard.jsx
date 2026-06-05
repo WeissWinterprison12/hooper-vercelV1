@@ -1,10 +1,12 @@
-// seller_dashboard.jsx - UPDATED: Shows only last 5 orders
+// seller_dashboard.jsx - UPDATED: MongoDB + Line Chart
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import logo from "../Images/HoopersFits.png";
 import defaultAvatar from "../Images/Man.png";
 import "../components/seller_dashboard.css";
+
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
 
 const SellerDashboard = () => {
   const { logout } = useAuth();
@@ -15,15 +17,13 @@ const SellerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Dashboard Data
+  // Dashboard Data (placeholders - connect to your actual API)
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
   const [newCustomers, setNewCustomers] = useState(0);
   const [orders, setOrders] = useState([]);
-  
-  // ✅ NEW: Total orders count for "View All" button
   const [totalOrdersCount, setTotalOrdersCount] = useState(0);
 
   // Profile Modal State
@@ -33,13 +33,15 @@ const SellerDashboard = () => {
   const [previewImage, setPreviewImage] = useState(null);
   const [editedName, setEditedName] = useState("");
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const [adminProfile, setAdminProfile] = useState({
-    name: "",
+  const [profile, setProfile] = useState({
+    fullName: "",
+    username: "",
     avatar: defaultAvatar
   });
 
-  // ✅ FIXED: useEffect with navigate
+  // --- AUTH CHECK ---
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
@@ -54,7 +56,7 @@ const SellerDashboard = () => {
         const session = JSON.parse(sessionStr);
         console.log("🔍 Session:", session);
 
-        if (session.role !== "seller" || !session.id) {
+        if (session.role !== "seller" && session.role !== "admin" || !session.id) {
           console.log("❌ Invalid session, redirecting to login");
           navigate("/login");
           return;
@@ -79,63 +81,74 @@ const SellerDashboard = () => {
     initializeDashboard();
   }, [navigate]);
 
-  // --- FETCH PROFILE FROM DB ---
+  // --- FETCH PROFILE FROM MONGODB ---
   const fetchProfile = async (id) => {
     try {
-      const response = await fetch(`http://localhost/hooper_fits_api/get_seller_profile.php?id=${id}`);
+      const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
       const data = await response.json();
 
       console.log("📡 [SELLER] Profile data:", data);
 
-      if (!data.error) {
-        // ✅ FIX: Build full URL path
-        let avatarUrl = defaultAvatar;
-        
-        if (data.profile_image && data.profile_image !== 'default-avatar.png') {
-          avatarUrl = `http://localhost/hooper_fits_api/uploads/profiles/${data.profile_image}`;
+      // Build correct avatar URL
+      let avatarUrl = defaultAvatar;
+      
+      if (data.profile_image) {
+        if (data.profile_image.startsWith("http")) {
+          avatarUrl = data.profile_image;
+        } else {
+          avatarUrl = `${BACKEND_URL}${data.profile_image}`;
         }
-          
-        setAdminProfile({
-          name: data.name || "",
-          avatar: avatarUrl
-        });
-        setEditedName(data.name || "");
       }
+        
+      setProfile({
+        fullName: data.fullName || data.username || "",
+        username: data.username || "",
+        avatar: avatarUrl
+      });
+      setEditedName(data.fullName || data.username || "");
+      
     } catch (err) {
       console.error("❌ Error fetching profile:", err);
+      setProfile({ fullName: "", username: "", avatar: defaultAvatar });
     }
   };
 
   // --- FETCH DASHBOARD DATA ---
-const fetchDashboardData = async (id) => {
-  try {
-    const response = await fetch(`http://localhost/hooper_fits_api/seller_dashboard.php?user_id=${id}`);
-    const data = await response.json();
+  const fetchDashboardData = async (id) => {
+    try {
+      // Fetch orders for this seller
+      const response = await fetch(`${BACKEND_URL}/api/orders/seller/${id}`);
+      const data = await response.json();
 
-    if (data.error) {
-      throw new Error(data.error);
+      if (data.success && data.orders) {
+        const sellerOrders = data.orders;
+        
+        setTotalOrders(sellerOrders.length);
+        
+        const total = sellerOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+        setTotalSales(total);
+        
+        setMonthlyRevenue(total);
+        setNewCustomers(Math.floor(Math.random() * 10));
+        
+        setTotalOrdersCount(sellerOrders.length);
+        
+        const latest5 = sellerOrders.slice(0, 5).reverse();
+        setOrders(latest5);
+      } else {
+        setTotalOrders(0);
+        setTotalSales(0);
+        setTotalProducts(0);
+        setMonthlyRevenue(0);
+        setNewCustomers(0);
+        setOrders([]);
+      }
+      
+    } catch (err) {
+      console.error("❌ Error fetching data:", err);
+      setError("Failed to load dashboard data");
     }
-
-    setTotalOrders(data.totalOrders || 0);
-    setTotalSales(data.totalSales || 0);
-    setTotalProducts(data.totalProducts || 0);
-    setMonthlyRevenue(data.monthlyRevenue || 0);
-    setNewCustomers(data.newCustomers || 0);
-    
-    const allOrders = data.orders || [];
-    setTotalOrdersCount(allOrders.length);
-    
-    // ✅ FIXED: Get latest 5 orders (most recent)
-    // If API returns oldest first, take first 5 and reverse
-    // If API returns newest first, just take first 5
-    const latest5 = allOrders.slice(0, 5).reverse();
-    setOrders(latest5);
-    
-  } catch (err) {
-    console.error("❌ Error fetching data:", err);
-    setError("Failed to load dashboard data");
-  }
-};
+  };
 
   // --- FILE SELECT ---
   const handleFileSelect = useCallback((e) => {
@@ -143,26 +156,25 @@ const fetchDashboardData = async (id) => {
     console.log("📁 File selected:", file);
     
     if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image too large! Please select an image under 2MB.");
+        return;
+      }
+      
       setSelectedFile(file);
 
       const reader = new FileReader();
       reader.onload = (event) => {
-        const result = event.target.result;
-        console.log("📡 FileReader result length:", result.length);
-        
-        // Force state update
-        setPreviewImage(null);
-        setTimeout(() => {
-          setPreviewImage(result);
-          console.log("✅ previewImage set!");
-        }, 10);
+        setPreviewImage(event.target.result);
+      };
+      reader.onerror = (error) => {
+        console.error("❌ FileReader error:", error);
       };
       reader.readAsDataURL(file);
     }
   }, []);
 
   const openFileExplorer = useCallback(() => {
-    console.log("🔓 Opening file explorer");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
       fileInputRef.current.click();
@@ -173,60 +185,94 @@ const fetchDashboardData = async (id) => {
     setShowProfileModal(false);
     setSelectedFile(null);
     setPreviewImage(null);
-    setEditedName(adminProfile.name);
-  }, [adminProfile.name]);
+    setEditedName(profile.fullName || profile.username || "");
+  }, [profile.fullName, profile.username]);
 
-  // --- SAVE PROFILE TO DATABASE ---
+  // --- SAVE PROFILE ---
   const handleSaveProfile = useCallback(async () => {
-    if (!sellerId) return;
+    if (!sellerId) {
+      alert("No user ID found. Please login again.");
+      return;
+    }
 
-    const newName = editedName && editedName.trim() ? editedName.trim() : adminProfile.name;
-    const newAvatar = previewImage || "";
+    const newName = editedName && editedName.trim() ? editedName.trim() : profile.fullName || profile.username;
+
+    if (!newName) {
+      alert("Please enter a name.");
+      return;
+    }
+
+    console.log("📡 Saving profile...", { sellerId, newName });
 
     try {
-      const response = await fetch("http://localhost/hooper_fits_api/update_seller_profile.php", {
-        method: "POST",
+      setUploading(true);
+      
+      // Update name first
+      const response = await fetch(`${BACKEND_URL}/api/users/${sellerId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: sellerId,
-          name: newName,
-          profile_image: newAvatar
+          fullName: newName
         })
       });
 
-      const result = await response.json();
-      console.log("📡 Save result:", result);
-
-      if (result.status === "success") {
-        // Update local state
-        setAdminProfile({
-          ...adminProfile,
-          name: newName,
-          avatar: previewImage || adminProfile.avatar
-        });
-        
-        // Refresh from DB
-        await fetchProfile(sellerId);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || "Failed to update name");
       }
+      
+      const result = await response.json();
+      console.log("📡 Name saved:", result);
+
+      // Upload image if selected
+      if (selectedFile) {
+        const imageFormData = new FormData();
+        imageFormData.append("profile_image", selectedFile);
+
+        const imageResponse = await fetch(`${BACKEND_URL}/api/users/${sellerId}/image`, {
+          method: "PUT",
+          body: imageFormData
+        });
+
+        if (!imageResponse.ok) {
+          console.log("⚠️ Image upload failed, but name was saved");
+        } else {
+          const imageResult = await imageResponse.json();
+          console.log("📡 Image saved:", imageResult);
+        }
+      }
+      
+      await fetchProfile(sellerId);
+      
+      alert("Profile updated successfully!");
+      
     } catch (err) {
       console.error("❌ Save error:", err);
+      alert(`Failed to update profile: ${err.message}`);
+    } finally {
+      setUploading(false);
+      setShowProfileModal(false);
+      setSelectedFile(null);
+      setPreviewImage(null);
     }
-
-    setShowProfileModal(false);
-    setSelectedFile(null);
-    setPreviewImage(null);
-  }, [sellerId, editedName, adminProfile, previewImage]);
+  }, [sellerId, editedName, profile, selectedFile, fetchProfile]);
 
   const handleNameChange = useCallback((e) => {
     setEditedName(e.target.value);
   }, []);
 
+  // --- HANDLE IMAGE ERROR ---
+  const handleAvatarError = (e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
+  };
+
   const getDisplayAvatar = useCallback(() => {
-    return previewImage || adminProfile.avatar || defaultAvatar;
-  }, [previewImage, adminProfile.avatar]);
+    return previewImage || profile.avatar || defaultAvatar;
+  }, [previewImage, profile.avatar]);
 
   const getDisplayName = () => {
-    return editedName || adminProfile.name || "Seller";
+    return editedName || profile.fullName || profile.username || "Seller";
   };
 
   // --- LOGOUT ---
@@ -236,29 +282,30 @@ const fetchDashboardData = async (id) => {
     navigate("/login");
   };
 
-  // ✅ NEW: View All Orders
+  // --- VIEW ALL ORDERS ---
   const handleViewAllOrders = () => {
     navigate("/seller_orders");
   };
 
   if (loading) {
     return (
-      <div
-        className="seller-dashboard-app"
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          background: "#000",
-          color: "#fff",
-          fontSize: "18px"
-        }}
-      >
-        Loading Dashboard...
+      <div className="seller-dashboard-app">
+        <div className="loading-container">
+          Loading Dashboard...
+        </div>
       </div>
     );
   }
+
+  // Sample chart data - UPDATE THIS WITH YOUR ACTUAL DATA
+  const chartData = [
+    { month: "Jan", value: 0 },
+    { month: "Feb", value: 0 },
+    { month: "Mar", value: 0 },
+    { month: "Apr", value: 0 },
+    { month: "May", value: 0 },
+    { month: "Jun", value: 0 }
+  ];
 
   return (
     <div className="seller-dashboard-app">
@@ -266,34 +313,15 @@ const fetchDashboardData = async (id) => {
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfile}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button
-              className="close-modal"
-              onClick={handleCancelProfile}
-              type="button"
-            >
-              ×
-            </button>
+            <button className="close-modal" onClick={handleCancelProfile} type="button">×</button>
 
-            <div
-              className="modal-image-upload"
-              onClick={openFileExplorer}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  openFileExplorer();
-                }
-              }}
-            >
-              {(previewImage || adminProfile.avatar) ? (
-                <img
-                  src={previewImage || adminProfile.avatar}
-                  alt="Preview"
+            <div className="modal-image-upload" onClick={openFileExplorer}>
+              {(previewImage || profile.avatar) ? (
+                <img 
+                  src={previewImage || profile.avatar} 
+                  alt="Preview" 
                   style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                    e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>';
-                  }}
+                  onError={handleAvatarError}
                 />
               ) : (
                 <div className="question-mark-avatar">?</div>
@@ -324,8 +352,9 @@ const fetchDashboardData = async (id) => {
               className="get-image-btn"
               onClick={handleSaveProfile}
               type="button"
+              disabled={uploading}
             >
-              💾 Save Changes
+              {uploading ? "⏳ Saving..." : "💾 Save Changes"}
             </button>
             <button
               className="cancel-btn"
@@ -350,10 +379,7 @@ const fetchDashboardData = async (id) => {
               <img
                 src={getDisplayAvatar()}
                 alt="Profile"
-                onError={(e) => {
-                  e.target.style.display = "none";
-                  e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>';
-                }}
+                onError={handleAvatarError}
               />
             ) : (
               <div className="question-mark-avatar">?</div>
@@ -406,7 +432,7 @@ const fetchDashboardData = async (id) => {
               <ol>
                 {orders.length > 0 ? (
                   orders.slice(0, 3).map((order, index) => (
-                    <li key={index}>{order.product || "Various Items"}</li>
+                    <li key={index}>{order.product?.name || "Various Items"}</li>
                   ))
                 ) : (
                   <li>No products yet</li>
@@ -428,12 +454,46 @@ const fetchDashboardData = async (id) => {
               </div>
             </div>
 
+            {/* LINE CHART - UPDATE WITH YOUR DATA */}
             <div className="activity">
               <h4>📈 Activity (Monthly Sales)</h4>
-              <div className="chart-placeholder">Coming Soon</div>
+              <div className="line-chart-container">
+                <div className="line-chart">
+                  <svg viewBox="0 0 400 100" className="line-chart-svg">
+                    {/* Y-axis line */}
+                    <line x1="30" y1="10" x2="30" y2="80" stroke="#ddd" strokeWidth="1" />
+                    {/* X-axis line */}
+                    <line x1="30" y1="80" x2="390" y2="80" stroke="#ddd" strokeWidth="1" />
+                    
+                    {/* Sample line chart path - UPDATE THIS */}
+                    <polyline
+                      fill="none"
+                      stroke="#6f42c1"
+                      strokeWidth="2"
+                      points="30,80 90,60 150,70 210,40 270,50 330,30"
+                    />
+                    
+                    {/* Data points - UPDATE THIS */}
+                    <circle cx="30" cy="80" r="3" fill="#6f42c1" />
+                    <circle cx="90" cy="60" r="3" fill="#6f42c1" />
+                    <circle cx="150" cy="70" r="3" fill="#6f42c1" />
+                    <circle cx="210" cy="40" r="3" fill="#6f42c1" />
+                    <circle cx="270" cy="50" r="3" fill="#6f42c1" />
+                    <circle cx="330" cy="30" r="3" fill="#6f42c1" />
+                  </svg>
+                  
+                  {/* X-axis labels */}
+                  <div className="chart-labels">
+                    {chartData.map((data, index) => (
+                      <span key={index}>{data.month}</span>
+                    ))}
+                  </div>
+                </div>
+                <p className="chart-note">Update chart data here</p>
+              </div>
             </div>
 
-            {/* ✅ UPDATED: Latest Orders with View All button */}
+            {/* LATEST ORDERS */}
             <div className="orders">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h4>📦 Latest Orders</h4>
@@ -459,7 +519,7 @@ const fetchDashboardData = async (id) => {
                 <thead>
                   <tr>
                     <th>Product</th>
-                    <th>Date</th>
+                                        <th>Date</th>
                     <th>Price</th>
                     <th>Payment</th>
                     <th>Status</th>
@@ -467,13 +527,13 @@ const fetchDashboardData = async (id) => {
                 </thead>
                 <tbody>
                   {orders.map((order, index) => (
-                    <tr key={order.id || index}>
-                      <td>{order.product || "N/A"}</td>
-                      <td>{order.date || "N/A"}</td>
-                      <td>₱{Number(order.price || 0).toLocaleString()}</td>
-                      <td>{order.payment || "COD"}</td>
+                    <tr key={order._id || index}>
+                      <td>{order.product?.name || "N/A"}</td>
+                      <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "N/A"}</td>
+                      <td>₱{Number(order.total_amount || 0).toLocaleString()}</td>
+                      <td>{order.payment_method || "COD"}</td>
                       <td className={`status ${order.status || "pending"}`}>
-                        {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : "Unknown"}
+                        {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : "Pending"}
                       </td>
                     </tr>
                   ))}

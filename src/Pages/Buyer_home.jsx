@@ -1,4 +1,4 @@
-// buyer_home.jsx - FIXED: Uses AuthContext
+// buyer_home.jsx - FIXED
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../AuthContext"; 
@@ -75,16 +75,20 @@ const BuyerHome = () => {
   // ✅ Get name from userProfile (from database)
   const userName = userProfile?.fullName || userProfile?.username || "Buyer";
   
-  // ✅ Build avatar URL - use full URL from backend or default
-  const userAvatar = userProfile?.profile_image 
-    ? userProfile.profile_image  // Backend already returns full URL now!
+  // ✅ Build avatar URL - properly check for valid profile image
+  const userAvatar = (userProfile?.profile_image && userProfile.profile_image.trim() !== "") 
+    ? userProfile.profile_image 
     : defaultAvatar;
 
+  // ✅ FIXED: Handle image error - just replace with default, don't replace entire element
   const handleImageError = (e) => {
     e.target.style.display = 'none';
-    if (e.target.parentNode) {
-      e.target.parentNode.innerHTML = '👤';
-    }
+  };
+
+  const handleAvatarError = (e) => {
+    // Force show default avatar when image fails
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
   };
 
   if (loading) {
@@ -326,7 +330,7 @@ const BuyerHome = () => {
             alt="Profile"
             title="Go to Dashboard"
             onClick={handleProfileClick}
-            onError={handleImageError}
+            onError={handleAvatarError}
           />
 
           <Link to="/checkout">
