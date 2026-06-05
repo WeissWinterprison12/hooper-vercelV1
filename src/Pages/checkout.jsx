@@ -1,4 +1,4 @@
-// Checkout.jsx - FIXED: With Profile Picture from Database
+// Checkout.jsx - WITH STOCK REDUCTION
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -29,7 +29,6 @@ const Checkout = () => {
     contact: ""
   });
 
-  // ✅ SET PAGE TITLE
   useEffect(() => {
     document.title = "Checkout - Hooper Fits";
   }, []);
@@ -39,7 +38,6 @@ const Checkout = () => {
     console.log("📡 Session from localStorage:", sessionStr);
     
     if (!sessionStr) {
-      console.log("❌ No session found");
       handleLogout();
       return;
     }
@@ -48,7 +46,6 @@ const Checkout = () => {
     console.log("📡 Parsed session:", session);
 
     if (!session || session.role !== "buyer" || !session.id) {
-      console.log("❌ Invalid session");
       handleLogout();
       return;
     }
@@ -58,7 +55,6 @@ const Checkout = () => {
     fetchBuyerInfo(session.id);
   }, []);
 
-  // ✅ FETCH USER PROFILE FOR AVATAR
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (!user?.id) return;
@@ -197,6 +193,7 @@ const Checkout = () => {
     setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
   };
 
+  // ✅ PLACE ORDER WITH STOCK REDUCTION
   const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
       alert('No items in cart!');
@@ -210,6 +207,22 @@ const Checkout = () => {
 
     setLoading(true);
     try {
+      // First, reduce the stock for each item
+      for (const item of cartItems) {
+        try {
+          const stockResponse = await fetch(`${BACKEND_URL}/api/products/${item.id}/reduce-stock`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quantity: item.quantity })
+          });
+          
+          const stockResult = await stockResponse.json();
+          console.log("📡 Stock reduced:", stockResult);
+        } catch (stockError) {
+          console.error("❌ Error reducing stock:", stockError);
+        }
+      }
+      
       const orderData = {
         buyer_id: user.id,
         payment_method: "COD",
@@ -279,12 +292,10 @@ const Checkout = () => {
     setSelectedReason('');
   };
 
-  // ✅ FIXED: Handle empty profile_image properly
   const userAvatar = (userProfile?.profile_image && userProfile.profile_image.trim() !== "") 
     ? userProfile.profile_image
     : defaultAvatar;
 
-  // ✅ FIXED: Fallback to default avatar instead of showing 👤
   const handleAvatarError = (e) => {
     e.target.onerror = null;
     e.target.src = defaultAvatar;
@@ -299,7 +310,6 @@ const Checkout = () => {
           border-radius: 50%;
           border: 2px solid #dc3545;
           object-fit: cover;
-          cursor: pointer;
           cursor: pointer;
           transition: transform 0.2s ease;
         }
@@ -430,7 +440,7 @@ const Checkout = () => {
                 </label>
               </div>
             </div>
-            <div className="modal-footer">
+                      <div className="modal-footer">
               <button className="btn btn-secondary" onClick={handleReasonClose}>Back</button>
               <button className="btn btn-danger" onClick={handleReasonSubmit} disabled={!selectedReason}>Submit Cancellation</button>
             </div>

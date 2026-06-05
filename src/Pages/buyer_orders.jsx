@@ -1,3 +1,4 @@
+// buyer_orders.jsx - UPDATED: With Retry Cancel After Rejection
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -14,8 +15,13 @@ const BuyerOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
-  
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [hoveredOrder, setHoveredOrder] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
 
   useEffect(() => {
@@ -57,13 +63,7 @@ const BuyerOrders = () => {
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch profile");
-      }
-      
       const data = await response.json();
-      console.log("📡 Profile data:", data);
 
       let avatarUrl = defaultAvatar;
       
@@ -113,6 +113,76 @@ const BuyerOrders = () => {
     navigate("/login");
   };
 
+  const handleShowCancelModal = (order) => {
+    setSelectedOrder(order);
+    setShowCancelModal(true);
+  };
+
+  const handleCloseCancelModal = () => {
+    setShowCancelModal(false);
+    setSelectedOrder(null);
+    setSelectedReason("");
+    setOtherReason("");
+  };
+
+  const handleConfirmCancel = () => {
+    setShowCancelModal(false);
+    setShowReasonModal(true);
+  };
+
+  const handleReasonSelect = (reason) => setSelectedReason(reason);
+
+  const handleReasonClose = () => {
+    setShowReasonModal(false);
+    setSelectedReason("");
+    setOtherReason("");
+  };
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrder || !selectedReason) {
+      alert("Please select a reason");
+      return;
+    }
+
+    const reason = selectedReason === "others" && otherReason.trim() 
+      ? otherReason 
+      : selectedReason;
+
+    try {
+      setCancelling(true);
+      
+      const response = await fetch(`${BACKEND_URL}/api/orders/${selectedOrder._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "cancellation_requested",
+          cancel_reason: reason
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert("✅ Cancellation request submitted! Waiting for seller approval.");
+        
+        const session = JSON.parse(localStorage.getItem("buyer_session"));
+        await fetchOrders(session.id);
+        
+        setShowReasonModal(false);
+        setSelectedReason("");
+        setOtherReason("");
+        setSelectedOrder(null);
+      } else {
+        alert("❌ Failed to cancel order: " + result.message);
+      }
+    } catch (error) {
+      console.error("❌ Error cancelling order:", error);
+      alert("Failed to cancel order. Please try again.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const getDisplayName = () => {
     return userProfile?.fullName || userProfile?.username || "Buyer";
   };
@@ -140,18 +210,7 @@ const BuyerOrders = () => {
         gap: '15px',
         zIndex: 9999
       }}>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-        <span style={{
-          color: '#333',
-          fontSize: '18px',
-          fontWeight: '500',
-          fontFamily: 'Poppins, sans-serif'
-        }}>Loading Orders...</span>
+        <span style={{ color: '#333', fontSize: '18px', fontWeight: '500' }}>Loading Orders...</span>
         <div style={{
           width: '30px',
           height: '30px',
@@ -163,6 +222,18 @@ const BuyerOrders = () => {
       </div>
     );
   }
+
+  // Helper to get status display
+  const getStatusDisplay = (status) => {
+    switch(status) {
+      case 'pending': return { text: 'Pending', color: '#ffd700' };
+      case 'delivered': return { text: 'Delivered', color: '#ff9800' };
+      case 'completed': return { text: 'Completed', color: '#90EE90' };
+      case 'cancelled': return { text: 'Cancelled', color: '#ff6b6b' };
+      case 'cancellation_requested': return { text: 'Cancellation Requested', color: '#FFA500' };
+      default: return { text: status || 'Unknown', color: '#87CEEB' };
+    }
+  };
 
   return (
     <div className="buyer-dashboard-app">
@@ -215,35 +286,65 @@ const BuyerOrders = () => {
                 <th>Total</th>
                 <th>Payment</th>
                 <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {orders.length > 0 ? orders.map((order) => (
-                <tr key={order._id}>
-                  <td>#{order._id?.slice(-6)}</td>
-                  <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
-                  <td>
-                    {order.items && order.items.length > 0 
-                      ? order.items.map(item => item.product_id?.product_name || "Product").join(", ")
-                      : "No items"}
-                  </td>
-                  <td>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-                  <td>{order.payment_method || "COD"}</td>
-                  <td>
-                    <span style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      background: order.status === 'pending' ? '#ffd700' : order.status === 'completed' ? '#90EE90' : order.status === 'cancelled' ? '#ff6b6b' : '#87CEEB',
-                      color: '#000'
-                    }}>
-                      {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
-                    </span>
-                  </td>
-                </tr>
-              )) : (
+              {orders.length > 0 ? orders.map((order) => {
+                const statusInfo = getStatusDisplay(order.status);
+                return (
+                  <tr 
+                    key={order._id}
+                    onMouseEnter={() => setHoveredOrder(order._id)}
+                    onMouseLeave={() => setHoveredOrder(null)}
+                  >
+                    <td>#{order._id?.slice(-6)}</td>
+                    <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
+                    <td>
+                      {order.items && order.items.length > 0 
+                        ? order.items.map(item => item.product_id?.product_name || "Product").join(", ")
+                        : "No items"}
+                    </td>
+                    <td>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                    <td>{order.payment_method || "COD"}</td>
+                    <td>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        background: statusInfo.color,
+                        color: '#000'
+                      }}>
+                        {statusInfo.text}
+                      </span>
+                    </td>
+                    <td>
+                      {hoveredOrder === order._id && 
+                       order.status !== 'cancelled' && 
+                       order.status !== 'completed' && 
+                       order.status !== 'cancellation_requested' && (
+                        <button
+                          onClick={() => handleShowCancelModal(order)}
+                          style={{
+                            background: '#ff6b6b',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '6px 10px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                          title="Cancel Order"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              }) : (
                 <tr>
-                  <td colSpan="6" style={{textAlign: 'center', padding: '40px'}}>
+                  <td colSpan="7" style={{textAlign: 'center', padding: '40px'}}>
                     <div style={{fontSize: '48px', marginBottom: '10px'}}>📦</div>
                     <p style={{color: '#666', fontSize: '16px'}}>No orders yet</p>
                     <button 
@@ -268,6 +369,110 @@ const BuyerOrders = () => {
           </table>
         </div>
       </div>
+
+      {/* CANCEL CONFIRMATION MODAL */}
+      {showCancelModal && (
+        <div className="message-modal" onClick={handleCloseCancelModal}>
+          <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 className="message-modal-title">❌ Cancel Order?</h2>
+            <p className="message-modal-text">
+              Are you sure you want to cancel this order?
+            </p>
+            <p style={{ color: '#666', fontSize: '14px', marginTop: '10px' }}>
+              Order #{selectedOrder?._id?.slice(-6)}
+            </p>
+            <div className="message-modal-buttons">
+              <button 
+                className="message-modal-btn secondary" 
+                onClick={handleCloseCancelModal}
+              >
+                No, Keep Order
+              </button>
+              <button 
+                className="message-modal-btn primary" 
+                onClick={handleConfirmCancel}
+                style={{ background: '#dc3545' }}
+              >
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANCEL REASON MODAL */}
+      {showReasonModal && (
+        <div className="message-modal" onClick={handleReasonClose}>
+          <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 className="message-modal-title">📝 Please state a reason</h2>
+            <div className="reason-options" style={{ marginTop: '20px' }}>
+              <label className="reason-option">
+                <input 
+                  type="radio" 
+                  name="cancelReason" 
+                  value="Need to change delivery address" 
+                  checked={selectedReason === "Need to change delivery address"}
+                  onChange={(e) => handleReasonSelect(e.target.value)} 
+                />
+                <span>Need to change delivery address</span>
+              </label>
+              <label className="reason-option">
+                <input 
+                  type="radio" 
+                  name="cancelReason" 
+                  value="Seller is not responsive to my inquiries" 
+                  checked={selectedReason === "Seller is not responsive to my inquiries"}
+                  onChange={(e) => handleReasonSelect(e.target.value)} 
+                />
+                <span>Seller is not responsive to my inquiries</span>
+              </label>
+              <label className="reason-option">
+                <input 
+                  type="radio" 
+                  name="cancelReason" 
+                  value="others" 
+                  checked={selectedReason === "others"}
+                  onChange={(e) => handleReasonSelect(e.target.value)} 
+                />
+                <span>Others:</span>
+                {selectedReason === "others" && (
+                  <input
+                    type="text"
+                    placeholder="Please specify..."
+                    value={otherReason}
+                    onChange={(e) => setOtherReason(e.target.value)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '10px',
+                      marginTop: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}
+                  />
+                )}
+              </label>
+            </div>
+            <div className="message-modal-buttons">
+              <button 
+                className="message-modal-btn secondary" 
+                onClick={handleReasonClose}
+              >
+                Back
+              </button>
+              <button 
+                className="message-modal-btn primary" 
+                onClick={handleCancelOrder}
+                disabled={!selectedReason || (selectedReason === "others" && !otherReason.trim())}
+                style={{ background: '#dc3545' }}
+              >
+                {cancelling ? "⏳ Cancelling..." : "Submit Cancellation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MESSAGE MODAL */}
       {showMessageModal && (

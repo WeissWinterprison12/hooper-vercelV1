@@ -131,22 +131,22 @@ const SellerProduct = () => {
   };
 
   const fetchProducts = async (id) => {
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/products/seller/${id}`);
-    const result = await response.json();
-    
-    console.log("📡 Products:", result);
-    
-    if (result.success) {
-      setProducts(result.products || []);
-    } else {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/products/seller/${id}`);
+      const result = await response.json();
+      
+      console.log("📡 Products:", result);
+      
+      if (result.success) {
+        setProducts(result.products || []);
+      } else {
+        setProducts([]);
+      }
+    } catch (error) {
+      console.error("❌ Error:", error);
       setProducts([]);
     }
-  } catch (error) {
-    console.error("❌ Error:", error);
-    setProducts([]);
-  }
-};
+  };
 
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
@@ -303,66 +303,65 @@ const SellerProduct = () => {
   };
 
   const handleAddProduct = async () => {
-  if (!newProduct.product_name?.trim()) {
-    showErrorModalFunc("❌ Product name is required");
-    return;
-  }
-  if (!newProductPrice || parseFloat(newProductPrice) <= 0) {
-    showErrorModalFunc("❌ Price must be greater than 0");
-    return;
-  }
-  const stockValue = parseInt(newProduct.stock) || 0;
-  if (!newProduct.stock || stockValue <= 0) {
-    showErrorModalFunc("❌ Stock must be greater than 0");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('seller_id', sellerId);
-  formData.append('product_name', newProduct.product_name);
-  formData.append('description', newProduct.description);
-  formData.append('category', newProduct.category || 'general');
-  formData.append('price', newProductPrice);
-  formData.append('stock', newProduct.stock);
-  
-  const fileInput = document.getElementById('product-image');
-  if (fileInput?.files[0]) {
-    formData.append('image', fileInput.files[0]);  // ✅ Removed extra ]
-  }
-
-  // Debug: Log all FormData entries
-  for (let pair of formData.entries()) {
-    console.log("📤 FormData:", pair[0], pair[1]);
-  }
-
-  try {
-    setLoading(true);
-    
-    console.log("📤 Sending to:", `${BACKEND_URL}/api/products`);
-    
-    const response = await fetch(`${BACKEND_URL}/api/products`, {
-      method: 'POST',
-      body: formData
-    });
-    
-    const result = await response.json();
-    
-    console.log("📥 Response:", result);
-    
-    if (result.success && result.product) {
-      closeAddProductModal();
-      await fetchProducts(sellerId);  // ✅ Added await
-      showSuccessModalFunc('✅ Product added!');
-    } else {
-      showErrorModalFunc(`❌ ${result.message || "Failed to add product"}`);
+    if (!newProduct.product_name?.trim()) {
+      showErrorModalFunc("❌ Product name is required");
+      return;
     }
-  } catch (error) {
-    console.error("❌ Network error:", error);
-    showErrorModalFunc('❌ Network error');
-  } finally {
-    setLoading(false);
-  }
-};
+    if (!newProductPrice || parseFloat(newProductPrice) <= 0) {
+      showErrorModalFunc("❌ Price must be greater than 0");
+      return;
+    }
+    const stockValue = parseInt(newProduct.stock) || 0;
+    if (!newProduct.stock || stockValue <= 0) {
+      showErrorModalFunc("❌ Stock must be greater than 0");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('seller_id', sellerId);
+    formData.append('product_name', newProduct.product_name);
+    formData.append('description', newProduct.description);
+    formData.append('category', newProduct.category || 'general');
+    formData.append('price', newProductPrice);
+    formData.append('stock', newProduct.stock);
+    
+    const fileInput = document.getElementById('product-image');
+    if (fileInput?.files[0]) {
+      formData.append('image', fileInput.files[0]);
+    }
+
+    for (let pair of formData.entries()) {
+      console.log("📤 FormData:", pair[0], pair[1]);
+    }
+
+    try {
+      setLoading(true);
+      
+      console.log("📤 Sending to:", `${BACKEND_URL}/api/products`);
+      
+      const response = await fetch(`${BACKEND_URL}/api/products`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      console.log("📥 Response:", result);
+      
+      if (result.success && result.product) {
+        closeAddProductModal();
+        await fetchProducts(sellerId);
+        showSuccessModalFunc('✅ Product added!');
+      } else {
+        showErrorModalFunc(`❌ ${result.message || "Failed to add product"}`);
+      }
+    } catch (error) {
+      console.error("❌ Network error:", error);
+      showErrorModalFunc('❌ Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleEditClick = (product) => {
     setEditProduct({
@@ -409,7 +408,7 @@ const SellerProduct = () => {
     }
 
     const formData = new FormData();
-    formData.append('product_name', editProduct.product_name);
+          formData.append('product_name', editProduct.product_name);
     formData.append('description', editProduct.description);
     formData.append('category', editProduct.category || 'general');
     formData.append('price', editProductPrice);
@@ -498,14 +497,33 @@ const SellerProduct = () => {
     e.target.src = defaultAvatar;
   };
 
-   // Display avatar
+  // Display avatar
   const displayAvatar = previewImage || profile.avatar || defaultAvatar;
 
-  // Pagination
+  // ✅ PAGINATION - SORT TO SHOW OUT OF STOCK FIRST
+  const sortedProducts = [...products].sort((a, b) => {
+    const stockA = parseInt(a.stock || 0);
+    const stockB = parseInt(b.stock || 0);
+    
+    // Out of stock (0) first
+    if (stockA === 0 && stockB > 0) return -1;
+    if (stockB === 0 && stockA > 0) return 1;
+    
+    // Low stock (1-5) second
+    if (stockA <= 5 && stockA > 0 && stockB > 5) return -1;
+    if (stockB <= 5 && stockB > 0 && stockA > 5) return 1;
+    
+    // Then by newest (by _id which is timestamp-based)
+    if (b._id > a._id) return 1;
+    if (b._id < a._id) return -1;
+    
+    return 0;
+  });
+
   const itemsPerPage = 10;
-  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentProducts = products.slice(startIndex, startIndex + itemsPerPage);
+  const currentProducts = sortedProducts.slice(startIndex, startIndex + itemsPerPage);
 
   // ✅ LOADING SCREEN
   if (loading || !sellerId) {
