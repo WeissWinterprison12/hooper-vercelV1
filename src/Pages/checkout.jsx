@@ -98,60 +98,62 @@ const Checkout = () => {
   };
 
   const loadCartItems = async (userId) => {
-    try {
-      console.log("📡 Loading cart for user:", userId);
-      
-      const response = await fetch(`${BACKEND_URL}/api/cart/${userId}`);
-      const data = await response.json();
-      
-      console.log("📡 Cart data:", data);
-      
-      if (data && data.length > 0) {
-        const items = data.map(cart => ({
-          id: cart._id,
-          product_id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
-          name: cart.products?.[0]?.product_id?.product_name || "Product",
-          price: cart.products?.[0]?.product_id?.price || 0,
-          quantity: cart.products?.[0]?.quantity || 1,
-          image: cart.products?.[0]?.product_id?.image || '',
-          seller_id: cart.products?.[0]?.product_id?.seller_id || null
-        }));
-        setCartItems(items);
-        return;
-      }
-      
-      const selectedProduct = sessionStorage.getItem('selectedProduct');
-      
-      if (selectedProduct) {
-        try {
-          const product = JSON.parse(selectedProduct);
-          
-          let imageUrl = product.image || '';
-          
-          if (!imageUrl || imageUrl === 'null' || imageUrl === '') {
-            imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
-          } else if (!imageUrl.startsWith('http')) {
-            imageUrl = `${BACKEND_URL}/uploads/products/${imageUrl}`;
-          }
-          
-          const cartItem = [{
-            id: product._id || product.id || product.product_id,
-            name: product.product_name,
-            price: parseFloat(product.price),
-            quantity: 1,
-            image: imageUrl,
-            seller_id: product.seller_id || null
-          }];
-          
-          setCartItems(cartItem);
-        } catch (e) {
-          setCartItems([]);
+  try {
+    console.log("📡 Loading cart for user:", userId);
+    
+    const response = await fetch(`${BACKEND_URL}/api/cart/${userId}`);
+    const data = await response.json();
+    
+    console.log("📡 Cart data:", data);
+    
+    if (data && data.length > 0) {
+      const items = data.map(cart => ({
+        // ✅ FIX: Use the actual product _id, not cart _id
+        id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
+        product_id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
+        name: cart.products?.[0]?.product_id?.product_name || "Product",
+        price: cart.products?.[0]?.product_id?.price || 0,
+        quantity: cart.products?.[0]?.quantity || 1,
+        image: cart.products?.[0]?.product_id?.image || '',
+        seller_id: cart.products?.[0]?.product_id?.seller_id || null
+      }));
+      setCartItems(items);
+      return;
+    }
+    
+    const selectedProduct = sessionStorage.getItem('selectedProduct');
+    
+    if (selectedProduct) {
+      try {
+        const product = JSON.parse(selectedProduct);
+        
+        let imageUrl = product.image || '';
+        
+        if (!imageUrl || imageUrl === 'null' || imageUrl === '') {
+          imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+        } else if (!imageUrl.startsWith('http')) {
+          imageUrl = `${BACKEND_URL}${imageUrl}`;
         }
-      } else {
+        
+        // ✅ FIX: Use product._id as the id
+        const cartItem = [{
+          id: product._id,
+          product_id: product._id,
+          name: product.product_name,
+          price: parseFloat(product.price),
+          quantity: 1,
+          image: imageUrl,
+          seller_id: product.seller_id
+        }];
+        
+        setCartItems(cartItem);
+      } catch (e) {
         setCartItems([]);
       }
-      
-    } catch (error) {
+    } else {
+      setCartItems([]);
+    }
+  } catch (error) {
       console.error('❌ Cart load error:', error);
       setCartItems([]);
     }
