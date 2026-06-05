@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import logo from "../Images/HoopersFits.png";
 import defaultAvatar from "../Images/Man.png";
 import "../components/buyer_dashboard.css";
@@ -17,6 +18,7 @@ const BuyerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
+  const [monthlyData, setMonthlyData] = useState([]);
   
   const fileInputRef = useRef(null);
   
@@ -68,7 +70,7 @@ const BuyerDashboard = () => {
     initializeDashboard();
   }, [navigate]);
 
-    // Fetch Profile from MongoDB
+  // Fetch Profile from MongoDB
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
@@ -80,16 +82,12 @@ const BuyerDashboard = () => {
       const data = await response.json();
       console.log("📡 Profile data:", data);
 
-      // ✅ Build correct avatar URL
       let avatarUrl = defaultAvatar;
       
       if (data.profile_image) {
-        // If it's already a full URL, use it
         if (data.profile_image.startsWith("http")) {
           avatarUrl = data.profile_image;
-        } 
-
-        else {
+        } else {
           avatarUrl = `https://hooper-renderv1-4.onrender.com${data.profile_image}`;
         }
       }
@@ -108,7 +106,7 @@ const BuyerDashboard = () => {
     }
   };
 
-  // Fetch Orders from MongoDB
+  // Fetch Orders from MongoDB & Calculate Monthly Data
   const fetchOrders = async (id) => {
     try {
       console.log("📡 Fetching orders for buyer:", id);
@@ -122,18 +120,45 @@ const BuyerDashboard = () => {
         setOrders(data.orders);
         
         const total = data.orders.reduce((sum, order) => {
-          return sum + Number(order.total_amount || 0);
+          return sum + Number(order.total_price || 0);
         }, 0);
         
         setTotalSpending(total);
+        
+        // Calculate monthly spending data
+        const monthlyMap = {};
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        // Initialize all months with 0
+        monthNames.forEach((month, index) => {
+          monthlyMap[index] = { month, spending: 0 };
+        });
+        
+        // Aggregate spending by month
+        data.orders.forEach(order => {
+          if (order.createdAt) {
+            const date = new Date(order.createdAt);
+            const monthIndex = date.getMonth();
+            if (monthlyMap[monthIndex]) {
+              monthlyMap[monthIndex].spending += Number(order.total_price || 0);
+            }
+          }
+        });
+        
+        // Convert to array
+        const chartData = Object.values(monthlyMap);
+        setMonthlyData(chartData);
+        
       } else {
         setOrders([]);
         setTotalSpending(0);
+        setMonthlyData([]);
       }
     } catch (error) {
       console.error('❌ Error fetching orders:', error);
       setOrders([]);
       setTotalSpending(0);
+      setMonthlyData([]);
     }
   };
 
@@ -149,7 +174,6 @@ const BuyerDashboard = () => {
     console.log("📁 File selected:", file);
     
     if (file) {
-      // Check file size (max 2MB)
       if (file.size > 2 * 1024 * 1024) {
         alert("Image too large! Please select an image under 2MB.");
         return;
@@ -182,7 +206,6 @@ const BuyerDashboard = () => {
     setEditedName(profile.fullName || profile.username || "");
   }, [profile.fullName, profile.username]);
 
-    // ✅ Save Profile - separate text and image
   const handleSaveProfile = useCallback(async () => {
     if (!buyerId) {
       alert("No user ID found. Please login again.");
@@ -201,7 +224,6 @@ const BuyerDashboard = () => {
     try {
       setUploading(true);
       
-      // First, update the name (and any other text fields)
       const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
         method: "PUT",
         headers: { 
@@ -220,7 +242,6 @@ const BuyerDashboard = () => {
       const result = await response.json();
       console.log("📡 Name saved:", result);
 
-      // Then, if there's a file selected, upload the image separately
       if (selectedFile) {
         const imageFormData = new FormData();
         imageFormData.append("profile_image", selectedFile);
@@ -405,7 +426,11 @@ const BuyerDashboard = () => {
               <p>🔥 Recent Purchases</p>
               <ol>
                 {orders.length > 0 ? orders.slice(0, 3).map(order => (
-                  <li key={order._id}>Order #{order._id?.slice(-6)}</li>
+                  <li key={order._id}>
+                    {order.items?.[0]?.product_id?.product_name 
+                      ? order.items[0].product_id.product_name 
+                      : `Order #${order._id?.slice(-6)}`}
+                  </li>
                 )) : (<li>No recent purchases</li>)}
               </ol>
             </div>
@@ -421,19 +446,55 @@ const BuyerDashboard = () => {
                 <p>Review Orders</p>
               </div>
             </div>
-            <div className="activity"><h4>📈 Spending Trend</h4><div className="chart-placeholder">Spending Chart Coming Soon</div></div>
+            
+            {/* 📈 SPENDING TREND LINE CHART */}
+            <div className="activity">
+              <h4>📈 Monthly Spending Trend</h4>
+              {monthlyData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={monthlyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                    <XAxis dataKey="month" stroke="#666" fontSize={12} />
+                    <YAxis 
+                      stroke="#666" 
+                      fontSize={12}
+                      tickFormatter={(value) => `₱${value.toLocaleString()}`}
+                    />
+                    <Tooltip 
+                      formatter={(value) => [`₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, 'Spending']}
+                      labelStyle={{ color: '#333' }}
+                      contentStyle={{ borderRadius: '8px', border: '1px solid #ddd' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="spending" 
+                      stroke="#dc3545" 
+                      strokeWidth={3}
+                      dot={{ fill: '#dc3545', strokeWidth: 2, r: 5 }}
+                      activeDot={{ r: 8 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-placeholder" style={{ padding: '40px', textAlign: 'center' }}>
+                  <p style={{ color: '#666' }}>No spending data yet</p>
+                  <p style={{ color: '#999', fontSize: '12px' }}>Start shopping to see your trend!</p>
+                </div>
+              )}
+            </div>
+            
             <div className="orders">
               <h4>📦 Recent Orders</h4>
               <table>
                 <thead>
-                  <tr><th>Order ID</th><th>Date</th><th>Total</th><th>Payment</th><th>Status</th></tr>
+                                  <tr><th>Order ID</th><th>Date</th><th>Total</th><th>Payment</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   {orders.length > 0 ? orders.map((order) => (
                     <tr key={order._id}>
                       <td>#{order._id?.slice(-6)}</td>
                       <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
-                      <td>₱{Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                      <td>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                       <td>{order.payment_method || "COD"}</td>
                       <td>
                         <span style={{

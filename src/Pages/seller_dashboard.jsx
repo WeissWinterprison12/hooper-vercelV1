@@ -1,7 +1,8 @@
-// seller_dashboard.jsx - UPDATED: MongoDB + Line Chart
+// seller_dashboard.jsx - UPDATED: MongoDB + Area Chart
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import logo from "../Images/HoopersFits.png";
 import defaultAvatar from "../Images/Man.png";
 import "../components/seller_dashboard.css";
@@ -17,7 +18,7 @@ const SellerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Dashboard Data (placeholders - connect to your actual API)
+  // Dashboard Data
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
@@ -25,6 +26,7 @@ const SellerDashboard = () => {
   const [newCustomers, setNewCustomers] = useState(0);
   const [orders, setOrders] = useState([]);
   const [totalOrdersCount, setTotalOrdersCount] = useState(0);
+  const [monthlyData, setMonthlyData] = useState([]);
 
   // Profile Modal State
   const fileInputRef = useRef(null);
@@ -66,7 +68,6 @@ const SellerDashboard = () => {
         console.log("✅ Seller authenticated:", id);
         setSellerId(id);
 
-        // Fetch profile and dashboard data
         await fetchProfile(id);
         await fetchDashboardData(id);
         
@@ -89,7 +90,6 @@ const SellerDashboard = () => {
 
       console.log("📡 [SELLER] Profile data:", data);
 
-      // Build correct avatar URL
       let avatarUrl = defaultAvatar;
       
       if (data.profile_image) {
@@ -116,7 +116,6 @@ const SellerDashboard = () => {
   // --- FETCH DASHBOARD DATA ---
   const fetchDashboardData = async (id) => {
     try {
-      // Fetch orders for this seller
       const response = await fetch(`${BACKEND_URL}/api/orders/seller/${id}`);
       const data = await response.json();
 
@@ -125,7 +124,8 @@ const SellerDashboard = () => {
         
         setTotalOrders(sellerOrders.length);
         
-        const total = sellerOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+        // ✅ FIXED: total_amount -> total_price
+        const total = sellerOrders.reduce((sum, order) => sum + Number(order.total_price || 0), 0);
         setTotalSales(total);
         
         setMonthlyRevenue(total);
@@ -135,6 +135,27 @@ const SellerDashboard = () => {
         
         const latest5 = sellerOrders.slice(0, 5).reverse();
         setOrders(latest5);
+
+        // ✅ Calculate monthly revenue data
+        const monthlyMap = {};
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        monthNames.forEach((month, index) => {
+          monthlyMap[index] = { month, revenue: 0 };
+        });
+        
+        sellerOrders.forEach(order => {
+          if (order.createdAt) {
+            const date = new Date(order.createdAt);
+            const monthIndex = date.getMonth();
+            if (monthlyMap[monthIndex]) {
+              monthlyMap[monthIndex].revenue += Number(order.total_price || 0);
+            }
+          }
+        });
+        
+        setMonthlyData(Object.values(monthlyMap));
+        
       } else {
         setTotalOrders(0);
         setTotalSales(0);
@@ -142,6 +163,7 @@ const SellerDashboard = () => {
         setMonthlyRevenue(0);
         setNewCustomers(0);
         setOrders([]);
+        setMonthlyData([]);
       }
       
     } catch (err) {
@@ -207,7 +229,6 @@ const SellerDashboard = () => {
     try {
       setUploading(true);
       
-      // Update name first
       const response = await fetch(`${BACKEND_URL}/api/users/${sellerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -224,7 +245,6 @@ const SellerDashboard = () => {
       const result = await response.json();
       console.log("📡 Name saved:", result);
 
-      // Upload image if selected
       if (selectedFile) {
         const imageFormData = new FormData();
         imageFormData.append("profile_image", selectedFile);
@@ -296,16 +316,6 @@ const SellerDashboard = () => {
       </div>
     );
   }
-
-  // Sample chart data - UPDATE THIS WITH YOUR ACTUAL DATA
-  const chartData = [
-    { month: "Jan", value: 0 },
-    { month: "Feb", value: 0 },
-    { month: "Mar", value: 0 },
-    { month: "Apr", value: 0 },
-    { month: "May", value: 0 },
-    { month: "Jun", value: 0 }
-  ];
 
   return (
     <div className="seller-dashboard-app">
@@ -432,7 +442,9 @@ const SellerDashboard = () => {
               <ol>
                 {orders.length > 0 ? (
                   orders.slice(0, 3).map((order, index) => (
-                    <li key={index}>{order.product?.name || "Various Items"}</li>
+                    <li key={index}>
+                      {order.items?.[0]?.product_id?.product_name || "Various Items"}
+                    </li>
                   ))
                 ) : (
                   <li>No products yet</li>
@@ -454,43 +466,46 @@ const SellerDashboard = () => {
               </div>
             </div>
 
-            {/* LINE CHART - UPDATE WITH YOUR DATA */}
+            {/* 📊 AREA CHART - Different from Line Chart */}
             <div className="activity">
-              <h4>📈 Activity (Monthly Sales)</h4>
-              <div className="line-chart-container">
-                <div className="line-chart">
-                  <svg viewBox="0 0 400 100" className="line-chart-svg">
-                    {/* Y-axis line */}
-                    <line x1="30" y1="10" x2="30" y2="80" stroke="#ddd" strokeWidth="1" />
-                    {/* X-axis line */}
-                    <line x1="30" y1="80" x2="390" y2="80" stroke="#ddd" strokeWidth="1" />
-                    
-                    {/* Sample line chart path - UPDATE THIS */}
-                    <polyline
-                      fill="none"
-                      stroke="#6f42c1"
-                      strokeWidth="2"
-                      points="30,80 90,60 150,70 210,40 270,50 330,30"
+              <h4>📈 Monthly Revenue (Area Chart)</h4>
+              {monthlyData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={monthlyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6f42c1" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#6f42c1" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                    <XAxis dataKey="month" stroke="#666" fontSize={12} />
+                    <YAxis 
+                      stroke="#666" 
+                      fontSize={12}
+                      tickFormatter={(value) => `₱${value.toLocaleString()}`}
                     />
-                    
-                    {/* Data points - UPDATE THIS */}
-                    <circle cx="30" cy="80" r="3" fill="#6f42c1" />
-                    <circle cx="90" cy="60" r="3" fill="#6f42c1" />
-                    <circle cx="150" cy="70" r="3" fill="#6f42c1" />
-                    <circle cx="210" cy="40" r="3" fill="#6f42c1" />
-                    <circle cx="270" cy="50" r="3" fill="#6f42c1" />
-                    <circle cx="330" cy="30" r="3" fill="#6f42c1" />
-                  </svg>
-                  
-                  {/* X-axis labels */}
-                  <div className="chart-labels">
-                    {chartData.map((data, index) => (
-                      <span key={index}>{data.month}</span>
-                    ))}
-                  </div>
+                    <Tooltip 
+                      formatter={(value) => [`₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, 'Revenue']}
+                      labelStyle={{ color: '#333' }}
+                      contentStyle={{ borderRadius: '8px', border: '1px solid #ddd' }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      stroke="#6f42c1" 
+                      strokeWidth={3}
+                      fillOpacity={1}
+                                            fill="url(#colorRevenue)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-placeholder" style={{ padding: '40px', textAlign: 'center' }}>
+                  <p style={{ color: '#666' }}>No revenue data yet</p>
+                  <p style={{ color: '#999', fontSize: '12px' }}>Start selling to see your revenue trend!</p>
                 </div>
-                <p className="chart-note">Update chart data here</p>
-              </div>
+              )}
             </div>
 
             {/* LATEST ORDERS */}
@@ -519,25 +534,24 @@ const SellerDashboard = () => {
                 <thead>
                   <tr>
                     <th>Product</th>
-                                        <th>Date</th>
+                    <th>Date</th>
                     <th>Price</th>
                     <th>Payment</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((order, index) => (
+                  {orders.length > 0 ? orders.map((order, index) => (
                     <tr key={order._id || index}>
-                      <td>{order.product?.name || "N/A"}</td>
+                      <td>{order.items?.[0]?.product_id?.product_name || "N/A"}</td>
                       <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "N/A"}</td>
-                      <td>₱{Number(order.total_amount || 0).toLocaleString()}</td>
+                      <td>₱{Number(order.total_price || 0).toLocaleString()}</td>
                       <td>{order.payment_method || "COD"}</td>
                       <td className={`status ${order.status || "pending"}`}>
                         {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : "Pending"}
                       </td>
                     </tr>
-                  ))}
-                  {orders.length === 0 && (
+                  )) : (
                     <tr>
                       <td colSpan="5" style={{ textAlign: "center", color: "#666", padding: "20px" }}>
                         No orders yet. Start selling! 🚀

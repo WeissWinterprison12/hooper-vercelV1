@@ -21,7 +21,7 @@ const Checkout = () => {
   const [selectedReason, setSelectedReason] = useState("");
   
   const [user, setUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);  // ✅ ADD THIS
+  const [userProfile, setUserProfile] = useState(null);
   
   const [buyerInfo, setBuyerInfo] = useState({
     name: "",
@@ -82,19 +82,19 @@ const Checkout = () => {
   }, [user]);
 
   const fetchBuyerInfo = async (userId) => {
-  try {
-    console.log("📡 Fetching buyer info for:", userId);
-    const response = await fetch(`${BACKEND_URL}/api/users/${userId}`);
-    const data = await response.json();
-    
-    console.log("📡 Buyer info:", data);
-    
-    if (data && !data.message) {
-      setBuyerInfo({
-        name: data.fullName || data.username || "Buyer",
-        address: data.address || "No address provided",
-        contact: data.contact || "No contact provided"
-      });
+    try {
+      console.log("📡 Fetching buyer info for:", userId);
+      const response = await fetch(`${BACKEND_URL}/api/users/${userId}`);
+      const data = await response.json();
+      
+      console.log("📡 Buyer info:", data);
+      
+      if (data && !data.message) {
+        setBuyerInfo({
+          name: data.fullName || data.username || "Buyer",
+          address: data.address || "No address provided",
+          contact: data.contact || "No contact provided"
+        });
       }
     } catch (err) {
       console.error("❌ Error fetching buyer info:", err);
@@ -279,16 +279,15 @@ const Checkout = () => {
     setSelectedReason('');
   };
 
-  // ✅ USE USERPROFILE FOR AVATAR (like buyer_home.jsx)
-  const userAvatar = userProfile?.profile_image 
-    ? userProfile.profile_image  // Backend already returns full URL!
+  // ✅ FIXED: Handle empty profile_image properly
+  const userAvatar = (userProfile?.profile_image && userProfile.profile_image.trim() !== "") 
+    ? userProfile.profile_image
     : defaultAvatar;
 
-  const handleImageError = (e) => {
-    e.target.style.display = 'none';
-    if (e.target.parentNode) {
-      e.target.parentNode.innerHTML = '👤';
-    }
+  // ✅ FIXED: Fallback to default avatar instead of showing 👤
+  const handleAvatarError = (e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
   };
 
   return (
@@ -301,6 +300,8 @@ const Checkout = () => {
           border: 2px solid #dc3545;
           object-fit: cover;
           cursor: pointer;
+          cursor: pointer;
+          transition: transform 0.2s ease;
         }
         .user-avatar:hover { transform: scale(1.1); }
         .cancel-order-section {
@@ -313,7 +314,14 @@ const Checkout = () => {
       <header className="header">
         <img src={logo} className="logo" alt="Logo" onClick={handleLogoClick} title="Go to Home" />
         <div className="header-right">
-          <img src={userAvatar} className="user-avatar" alt="Profile" onClick={handleProfileClick} onError={handleImageError} title="Go to Dashboard" />
+          <img 
+            src={userAvatar} 
+            className="user-avatar" 
+            alt="Profile" 
+            onClick={handleProfileClick} 
+            onError={handleAvatarError}
+            title="Go to Dashboard" 
+          />
           <span className="logout-btn" onClick={handleLogout}>Logout</span>
         </div>
       </header>
@@ -412,8 +420,6 @@ const Checkout = () => {
                   <input type="radio" name="cancelReason" value="no longer need it" onChange={(e) => handleReasonSelect(e.target.value)} />
                   <span>No longer need it</span>
                 </label>
-                // CONTINUING FROM WHERE IT LEFT OFF...
-
                 <label className="reason-option">
                   <input type="radio" name="cancelReason" value="prefer different color/size" onChange={(e) => handleReasonSelect(e.target.value)} />
                   <span>Prefer different color/size</span>
@@ -453,4 +459,4 @@ const Checkout = () => {
   );
 };
 
-export default Checkout;  
+export default Checkout;

@@ -223,9 +223,11 @@ const BuyerOrders = () => {
                   <td>#{order._id?.slice(-6)}</td>
                   <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
                   <td>
-                    {order.items?.length || 1} item(s)
+                    {order.items && order.items.length > 0 
+                      ? order.items.map(item => item.product_id?.product_name || "Product").join(", ")
+                      : "No items"}
                   </td>
-                  <td>₱{Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                  <td>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                   <td>{order.payment_method || "COD"}</td>
                   <td>
                     <span style={{
