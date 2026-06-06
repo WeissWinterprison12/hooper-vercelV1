@@ -470,8 +470,7 @@ const BuyerDashboard = () => {
             </div>
           </div>
 
-
-
+          <div className="right-content">
             <div className="small-cards">
               <div className="small-card" onClick={() => setShowMessageModal(true)}>
                 <h3>💬</h3><p>Need Help? Message Us</p>
@@ -518,7 +517,7 @@ const BuyerDashboard = () => {
               )}
             </div>
             
-            <div className="orders">
+                        <div className="orders">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h4>📦 Recent Orders</h4>
                 {orders.length > 5 && (
@@ -597,8 +596,9 @@ const BuyerDashboard = () => {
             </div>
           </div>
         </div>
- 
+      </div>
 
+      {/* MESSAGE MODAL */}
       {showMessageModal && (
         <div className="message-modal" onClick={() => setShowMessageModal(false)}>
           <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
