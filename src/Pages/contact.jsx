@@ -110,7 +110,7 @@ const Contact = () => {
     navigate('/checkout');
   };
 
-  // ✅ UPDATED: Opens default email client with pre-filled message
+  // ✅ UPDATED: Opens default email client with pre-filled message AND sets reply-to address
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -132,8 +132,11 @@ const Contact = () => {
         `Message:\n${formData.message}`
       );
 
-      // Open default email client
-      const mailtoLink = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+      // ✅ ADDED: Include replyTo so HooperFits can reply to the user's email
+      const replyTo = encodeURIComponent(formData.email);
+
+      // Open default email client with replyTo set to user's email
+      const mailtoLink = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}&replyTo=${replyTo}`;
       
       // Try to open email client
       const emailWindow = window.open(mailtoLink, "_blank");
