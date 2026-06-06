@@ -440,7 +440,7 @@ const BuyerMessages = () => {
             <button className="close-modal" onClick={() => setShowSendModal(false)} type="button">×</button>
             
             <h2 className="send-modal-title">📤 Send Message</h2>
-            <p className="send-modal-subtitle">Your message will be sent to ALL sellers</p>
+            <p className="send-modal-subtitle">Your message will be sent to the seller</p>
             
             <form onSubmit={handleSendMessage}>
               <div className="message-textarea-container">

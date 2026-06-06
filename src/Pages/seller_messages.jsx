@@ -1,4 +1,4 @@
-// seller_messages.jsx - UPDATED: Same loading screen as seller_orders
+// seller_messages.jsx - UPDATED: Add Reply and Delete functionality
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -29,6 +29,14 @@ const SellerMessages = () => {
   const [previewImage, setPreviewImage] = useState(null);
   const [editedName, setEditedName] = useState("");
   const [uploading, setUploading] = useState(false);
+
+  // NEW: Send Message Modal State
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [newMessage, setNewMessage] = useState({
+    message: ""
+  });
+  const [replyToBuyer, setReplyToBuyer] = useState(null);
 
   useEffect(() => {
     document.title = "Messages - Hooper Fits";
@@ -225,6 +233,109 @@ const SellerMessages = () => {
     }
   }, [sellerId, editedName, adminProfile.name, selectedFile, fetchProfile]);
 
+  // NEW: SEND MESSAGE FUNCTION
+  const handleSendMessage = useCallback(async (e) => {
+    e.preventDefault();
+    
+    if (!newMessage.message.trim()) {
+      alert("Please enter a message");
+      return;
+    }
+
+    if (!sellerId) {
+      alert("Session expired. Please login again.");
+      return;
+    }
+
+    if (!replyToBuyer) {
+      alert("No recipient found. Please try again.");
+      return;
+    }
+
+    try {
+      setSending(true);
+      
+      const response = await fetch(`${BACKEND_URL}/api/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender_id: sellerId,
+          receiver_id: replyToBuyer,
+          message: newMessage.message.trim()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to send message");
+      }
+
+      const result = await response.json();
+      console.log("📡 Message sent:", result);
+      
+      alert("Message sent successfully!");
+      setNewMessage({ message: "" });
+      setReplyToBuyer(null);
+      setShowSendModal(false);
+      setSelectedMessage(null);
+      
+    } catch (error) {
+      console.error("❌ Error sending message:", error);
+      alert("Failed to send message. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  }, [newMessage, sellerId, replyToBuyer]);
+
+  // NEW: DELETE MESSAGE FUNCTION
+  // UPDATE: Delete function to match your backend
+const handleDeleteMessage = useCallback(async () => {
+  if (!selectedMessage || !selectedMessage._id) {
+    alert("No message selected.");
+    return;
+  }
+
+  const confirmDelete = window.confirm("Are you sure you want to delete this message?");
+  if (!confirmDelete) return;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/messages/${selectedMessage._id}`, {
+      method: "DELETE"
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to delete message");
+    }
+
+    console.log("📡 Message deleted:", result);
+    
+    alert("Message deleted successfully!");
+    setSelectedMessage(null);
+    await fetchMessages(sellerId);
+    
+  } catch (error) {
+    console.error("❌ Error deleting message:", error);
+    alert("Failed to delete message. Please try again.");
+  }
+}, [selectedMessage, sellerId]);
+
+  // NEW: OPEN REPLY MODAL
+  const handleOpenReply = useCallback(() => {
+    if (!selectedMessage) return;
+    
+    // Get the buyer ID (sender_id for buyer messages)
+    const buyerId = selectedMessage.sender_id;
+    if (!buyerId) {
+      alert("Cannot reply: No buyer ID found.");
+      return;
+    }
+    
+    setReplyToBuyer(buyerId);
+    setNewMessage({ message: "" });
+    setShowSendModal(true);
+  }, [selectedMessage]);
+
   // HELPER FUNCTIONS
   const formatDate = (timestamp) => {
     if (!timestamp) return 'Just now';
@@ -323,6 +434,41 @@ const SellerMessages = () => {
         </div>
       )}
 
+      {/* NEW: SEND MESSAGE MODAL */}
+      {showSendModal && (
+        <div className="send-modal" onClick={() => setShowSendModal(false)}>
+          <div className="send-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setShowSendModal(false)} type="button">×</button>
+            
+            <h2 className="send-modal-title">📤 Send Message</h2>
+            <p className="send-modal-subtitle">
+              Replying to: {selectedMessage?.fullname || selectedMessage?.sender_username || `User #${selectedMessage?.sender_id}`}
+            </p>
+            
+            <form onSubmit={handleSendMessage}>
+              <div className="message-textarea-container">
+                <label className="message-label">Your Message</label>
+                <textarea 
+                  value={newMessage.message}
+                  onChange={(e) => setNewMessage({ ...newMessage, message: e.target.value })}
+                  className="message-textarea"
+                  placeholder="Type your reply here..."
+                  rows="5"
+                  required
+                />
+              </div>
+
+              <button type="submit" className="send-btn" disabled={sending}>
+                {sending ? "⏳ Sending..." : "📤 Send Reply"}
+              </button>
+              <button type="button" className="cancel-btn" onClick={() => setShowSendModal(false)}>
+                ❌ Cancel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
@@ -352,7 +498,7 @@ const SellerMessages = () => {
 
       {/* MAIN CONTENT */}
       <div className="main">
-        <div className="top-bar">
+                <div className="top-bar">
           <h1>💬 Messages ({messages.length})</h1>
           {unreadCount > 0 && (
             <span style={{background: '#dc3545', color: '#fff', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', marginLeft: '10px'}}>
@@ -420,8 +566,8 @@ const SellerMessages = () => {
                 <p><strong>📅 Date:</strong> {new Date(selectedMessage.createdAt || selectedMessage.created_at).toLocaleString()}</p>
               </div>
               <div className="message-actions">
-                <button className="reply-btn" onClick={() => alert("Reply feature coming soon!")}>💬 Reply</button>
-                <button className="delete-btn" onClick={() => alert("Delete feature coming soon!")}>🗑️ Delete</button>
+                <button className="reply-btn" onClick={handleOpenReply}>💬 Reply</button>
+                <button className="delete-btn" onClick={handleDeleteMessage}>🗑️ Delete</button>
               </div>
             </div>
           </div>
