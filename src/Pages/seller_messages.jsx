@@ -179,6 +179,12 @@ const SellerMessages = () => {
     if (!newMessage.message.trim()) { alert("Please enter a message"); return; }
     if (!sellerId || !replyToBuyer) { alert("Session expired. Please login again."); return; }
 
+    console.log("📤 Sending message:", {
+      sender_id: sellerId,
+      receiver_id: replyToBuyer,
+      message: newMessage.message.trim()
+    });
+
     try {
       setSending(true);
       const response = await fetch(`${BACKEND_URL}/api/messages`, {
@@ -191,7 +197,10 @@ const SellerMessages = () => {
         })
       });
 
-      if (!response.ok) throw new Error("Failed to send message");
+      const result = await response.json();
+      console.log("📡 Response:", result);
+
+      if (!response.ok) throw new Error(result.message || "Failed to send message");
       
       alert("Message sent successfully!");
       setNewMessage({ message: "" });
@@ -224,11 +233,25 @@ const SellerMessages = () => {
     }
   }, [selectedMessage, sellerId]);
 
-  // OPEN REPLY MODAL
+  // OPEN REPLY MODAL - FIXED to handle object format
   const handleOpenReply = useCallback(() => {
     if (!selectedMessage) return;
-    const buyerId = selectedMessage.sender_id;
-    if (!buyerId) { alert("Cannot reply: No buyer ID found."); return; }
+    
+    // Handle both string and object formats for sender_id
+    let buyerId;
+    if (typeof selectedMessage.sender_id === 'object' && selectedMessage.sender_id !== null) {
+      buyerId = selectedMessage.sender_id._id || selectedMessage.sender_id.id || selectedMessage.sender_id;
+    } else {
+      buyerId = selectedMessage.sender_id;
+    }
+    
+    if (!buyerId) { 
+      console.log("❌ No buyer ID found:", selectedMessage);
+      alert("Cannot reply: No buyer ID found."); 
+      return; 
+    }
+    
+    console.log("📤 Replying to buyer:", buyerId);
     
     setReplyToBuyer(buyerId);
     setNewMessage({ message: "" });
@@ -313,7 +336,10 @@ const SellerMessages = () => {
             <button className="close-modal" onClick={() => { setShowSendModal(false); setReplyToBuyer(null); }}>×</button>
             <h2 className="send-modal-title">📤 Send Message</h2>
             <p className="send-modal-subtitle">
-              Replying to: {messages.find(m => m.sender_id === replyToBuyer)?.fullname || `User #${replyToBuyer}`}
+              Replying to: {messages.find(m => {
+                const mId = typeof m.sender_id === 'object' ? m.sender_id._id : m.sender_id;
+                return mId === replyToBuyer;
+              })?.fullname || `User #${replyToBuyer}`}
             </p>
             <form onSubmit={handleSendMessage}>
               <div className="message-textarea-container">
@@ -402,43 +428,55 @@ const SellerMessages = () => {
                   onClick={() => handleMessageClick(message)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <div className="sender">{message.fullname || message.sender_username || message.name || `User #${message.sender_id}`}</div>
-                  <div className="subject" title={message.message}>
-                    {message.message?.length > 50 ? `${message.message.substring(0, 50)}...` : message.message || 'No message'}
-                  </div>
-                                    <div className="date">{formatDate(message.createdAt || message.created_at)}</div>
-                  <div className={`status ${isMessageUnread(message) ? 'unread' : 'read'}`}>
-                    {isMessageUnread(message) ? 'Unread' : 'Read'}
-                  </div>
-                </div>
-              ))}
+                                <div className="sender">
+                {message.fullname || message.sender_username || message.name || `User #${typeof message.sender_id === 'object' ? message.sender_id._id : message.sender_id}`}
+              </div>
+              <div className="subject" title={message.message}>
+                {message.message?.length > 50 ? `${message.message.substring(0, 50)}...` : message.message || 'No message'}
+              </div>
+              <div className="date">{formatDate(message.createdAt || message.created_at)}</div>
+              <div className={`status ${isMessageUnread(message) ? 'unread' : 'read'}`}>
+                {isMessageUnread(message) ? 'Unread' : 'Read'}
+              </div>
             </div>
-          )}
+          ))}
         </div>
-
-        {/* Message details modal */}
-        {selectedMessage && !showSendModal && (
-          <div className="message-modal" onClick={() => setSelectedMessage(null)}>
-            <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="message-header">
-                <h3>{selectedMessage.message}</h3>
-                <button className="close-message" onClick={() => setSelectedMessage(null)}>×</button>
-              </div>
-              <div className="message-details">
-                <p><strong>👤 From:</strong> {selectedMessage.fullname || selectedMessage.sender_username || selectedMessage.name || `User #${selectedMessage.sender_id}`}</p>
-                <p><strong>📧 Email:</strong> {selectedMessage.email}</p>
-                <p><strong>📅 Date:</strong> {new Date(selectedMessage.createdAt || selectedMessage.created_at).toLocaleString()}</p>
-              </div>
-              <div className="message-actions">
-                <button className="reply-btn" onClick={handleOpenReply}>💬 Reply</button>
-                <button className="delete-btn" onClick={handleDeleteMessage}>🗑️ Delete</button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
-  );
-};
+
+    {/* Message details modal */}
+    {selectedMessage && !showSendModal && (
+      <div className="message-modal" onClick={() => setSelectedMessage(null)}>
+        <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="message-header">
+            <h3>{selectedMessage.message}</h3>
+            <button className="close-message" onClick={() => setSelectedMessage(null)}>×</button>
+          </div>
+          <div className="message-details">
+            <p>
+              <strong>👤 From:</strong> {
+                selectedMessage.fullname || 
+                selectedMessage.sender_username || 
+                selectedMessage.name || 
+                `User #${
+                  typeof selectedMessage.sender_id === 'object' 
+                    ? selectedMessage.sender_id._id 
+                    : selectedMessage.sender_id
+                }`
+              }
+            </p>
+            <p><strong>📧 Email:</strong> {selectedMessage.email}</p>
+            <p><strong>📅 Date:</strong> {new Date(selectedMessage.createdAt || selectedMessage.created_at).toLocaleString()}</p>
+          </div>
+          <div className="message-actions">
+            <button className="reply-btn" onClick={handleOpenReply}>💬 Reply</button>
+            <button className="delete-btn" onClick={handleDeleteMessage}>🗑️ Delete</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</div>
+); };
 
 export default SellerMessages;
