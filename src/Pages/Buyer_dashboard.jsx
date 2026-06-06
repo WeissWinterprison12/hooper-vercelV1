@@ -1,4 +1,4 @@
-// buyer_dashboard.jsx - UPDATED: Same loading as buyer_orders.jsx
+// buyer_dashboard.jsx - UPDATED: Fixed Recent Orders to show Last 5 Newest
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -19,8 +19,9 @@ const BuyerDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [totalSpending, setTotalSpending] = useState(0);
   const [monthlyData, setMonthlyData] = useState([]);
+  const [totalOrdersCount, setTotalOrdersCount] = useState(0);
   
-  // Profile Modal Refs & State (SAME AS SELLER)
+  // Profile Modal Refs & State
   const fileInputRef = useRef(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -118,14 +119,28 @@ const BuyerDashboard = () => {
       console.log("📡 Orders response:", data);
       
       if (data.success && data.orders) {
-        setOrders(data.orders);
+        const buyerOrders = data.orders;
         
-        const total = data.orders.reduce((sum, order) => {
+        setOrders(buyerOrders);
+        setTotalOrdersCount(buyerOrders.length);
+        
+        const total = buyerOrders.reduce((sum, order) => {
           return sum + Number(order.total_price || 0);
         }, 0);
         
         setTotalSpending(total);
         
+        // ✅ LOGIC FIX: Sort by Created Date (Newest First) BEFORE taking latest 5
+        const sortedOrders = [...buyerOrders].sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0);
+          const dateB = new Date(b.createdAt || 0);
+          return dateB - dateA; // Descending order (newest first)
+        });
+        
+        // Get the first 5 (which are now the newest because of the sort above)
+        const recent5 = sortedOrders.slice(0, 5);
+        setOrders(recent5);
+
         // Calculate monthly spending data
         const monthlyMap = {};
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -134,7 +149,7 @@ const BuyerDashboard = () => {
           monthlyMap[index] = { month, spending: 0 };
         });
         
-        data.orders.forEach(order => {
+        buyerOrders.forEach(order => {
           if (order.createdAt) {
             const date = new Date(order.createdAt);
             const monthIndex = date.getMonth();
@@ -151,12 +166,14 @@ const BuyerDashboard = () => {
         setOrders([]);
         setTotalSpending(0);
         setMonthlyData([]);
+        setTotalOrdersCount(0);
       }
     } catch (error) {
       console.error('❌ Error fetching orders:', error);
       setOrders([]);
       setTotalSpending(0);
       setMonthlyData([]);
+      setTotalOrdersCount(0);
     }
   };
 
@@ -167,7 +184,7 @@ const BuyerDashboard = () => {
     navigate("/login");
   };
 
-  // --- FILE SELECT (SAME AS SELLER) ---
+  // --- FILE SELECT ---
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     console.log("📁 File selected:", file);
@@ -198,7 +215,7 @@ const BuyerDashboard = () => {
     }
   }, []);
 
-  // --- CANCEL PROFILE EDIT (SAME AS SELLER) ---
+  // --- CANCEL PROFILE EDIT ---
   const handleCancelProfile = useCallback(() => {
     setShowProfileModal(false);
     setSelectedFile(null);
@@ -206,7 +223,7 @@ const BuyerDashboard = () => {
     setEditedName(profile.fullName || profile.username || "");
   }, [profile.fullName, profile.username]);
 
-  // --- SAVE PROFILE (SAME AS SELLER - WITH IMAGE UPLOAD) ---
+  // --- SAVE PROFILE ---
   const handleSaveProfile = useCallback(async () => {
     if (!buyerId) {
       alert("No user ID found. Please login again.");
@@ -225,7 +242,6 @@ const BuyerDashboard = () => {
     try {
       setUploading(true);
       
-      // Step 1: Save the name first
       const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
         method: "PUT",
         headers: { 
@@ -244,7 +260,6 @@ const BuyerDashboard = () => {
       const result = await response.json();
       console.log("📡 Name saved:", result);
 
-      // Step 2: Upload image if selected (SAME AS SELLER)
       if (selectedFile) {
         const imageFormData = new FormData();
         imageFormData.append("profile_image", selectedFile);
@@ -262,7 +277,6 @@ const BuyerDashboard = () => {
         }
       }
       
-      // Step 3: Refresh profile data
       await fetchProfile(buyerId);
       
       alert("Profile updated successfully!");
@@ -276,13 +290,12 @@ const BuyerDashboard = () => {
       setSelectedFile(null);
       setPreviewImage(null);
     }
-  }, [buyerId, editedName, profile, selectedFile, fetchProfile]);
+  }, [buyerId, editedName, profile, selectedFile]);
 
   const handleNameChange = useCallback((e) => {
     setEditedName(e.target.value);
   }, []);
 
-  // --- HANDLE IMAGE ERROR ---
   const handleAvatarError = useCallback((e) => {
     e.target.onerror = null;
     e.target.src = defaultAvatar;
@@ -300,7 +313,7 @@ const BuyerDashboard = () => {
     return profile.username || "@user";
   };
 
-  // === UPDATED LOADING SCREEN (SAME AS BUYER_ORDERS) ===
+  // === UPDATED LOADING SCREEN ===
   if (loading) {
     return (
       <div style={{
@@ -337,7 +350,7 @@ const BuyerDashboard = () => {
   
   return (
     <div className="buyer-dashboard-app">
-      {/* PROFILE MODAL (EXACTLY SAME AS SELLER_DASHBOARD) */}
+      {/* PROFILE MODAL */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfile}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -445,7 +458,7 @@ const BuyerDashboard = () => {
         <div className="dashboard">
           <div className="left-stats">
             <div className="stat-card">
-              <h3>{orders.length}</h3>
+              <h3>{totalOrdersCount}</h3>
               <p>Total Orders</p>
             </div>
             <div className="stat-card">
@@ -462,7 +475,7 @@ const BuyerDashboard = () => {
                 {orders.length > 0 ? orders.slice(0, 3).map(order => (
                   <li key={order._id}>
                     {order.items?.[0]?.product_id?.product_name 
-                      ? order.items[0].product_id.product_name 
+                                            ? order.items[0].product_id.product_name 
                       : `Order #${order._id?.slice(-6)}`}
                   </li>
                 )) : (<li>No recent purchases</li>)}
@@ -517,10 +530,11 @@ const BuyerDashboard = () => {
               )}
             </div>
             
-                        <div className="orders">
+            {/* RECENT ORDERS - EXACTLY 5 ITEMS (NOW SORTED NEWEST FIRST) */}
+            <div className="orders">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h4>📦 Recent Orders</h4>
-                {orders.length > 5 && (
+                {totalOrdersCount > 5 && (
                   <button 
                     onClick={() => navigate('/buyer_orders')}
                     style={{
@@ -534,7 +548,7 @@ const BuyerDashboard = () => {
                       fontWeight: '600'
                     }}
                   >
-                    View All ({orders.length}) →
+                    View All ({totalOrdersCount}) →
                   </button>
                 )}
               </div>
