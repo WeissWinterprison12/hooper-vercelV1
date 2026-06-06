@@ -1,4 +1,4 @@
-// Checkout.jsx - WITH STOCK REDUCTION & ADD TO CART
+// Checkout.jsx - WITH STOCK REDUCTION
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -98,65 +98,62 @@ const Checkout = () => {
   };
 
   const loadCartItems = async (userId) => {
-    try {
-      console.log("📡 Loading cart for user:", userId);
-      
-      // First, try to fetch from API cart
-      const response = await fetch(`${BACKEND_URL}/api/cart/${userId}`);
-      const data = await response.json();
-      
-      console.log("📡 API Cart data:", data);
-      
-      // If API cart has items, use them
-      if (data.success && data.items && data.items.length > 0) {
-        const items = data.items.map(cart => ({
-          id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
-          product_id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
-          name: cart.products?.[0]?.product_id?.product_name || "Product",
-          price: cart.products?.[0]?.product_id?.price || 0,
-          quantity: cart.products?.[0]?.quantity || 1,
-          image: cart.products?.[0]?.product_id?.image || '',
-          seller_id: cart.products?.[0]?.product_id?.seller_id || null,
-          inCart: true // Flag to show item is in cart database
-        }));
-        setCartItems(items);
-        return;
-      }
-      
-      // If no API cart items, check sessionStorage for single item
-      const selectedProduct = sessionStorage.getItem('selectedProduct');
-      
-      if (selectedProduct) {
-        try {
-          const product = JSON.parse(selectedProduct);
-          
-          let imageUrl = product.image || '';
-          
-          if (!imageUrl || imageUrl === 'null' || imageUrl === '') {
-            imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
-          } else if (!imageUrl.startsWith('http')) {
-            imageUrl = `${BACKEND_URL}${imageUrl}`;
-          }
-          
-          const cartItem = [{
-            id: product._id,
-            product_id: product._id,
-            name: product.product_name,
-            price: parseFloat(product.price),
-            quantity: 1,
-            image: imageUrl,
-            seller_id: product.seller_id,
-            inCart: false // Not saved in database yet
-          }];
-          
-          setCartItems(cartItem);
-        } catch (e) {
-          setCartItems([]);
+  try {
+    console.log("📡 Loading cart for user:", userId);
+    
+    const response = await fetch(`${BACKEND_URL}/api/cart/${userId}`);
+    const data = await response.json();
+    
+    console.log("📡 Cart data:", data);
+    
+    if (data && data.length > 0) {
+      const items = data.map(cart => ({
+        // ✅ FIX: Use the actual product _id, not cart _id
+        id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
+        product_id: cart.products?.[0]?.product_id?._id || cart.products?.[0]?.product_id,
+        name: cart.products?.[0]?.product_id?.product_name || "Product",
+        price: cart.products?.[0]?.product_id?.price || 0,
+        quantity: cart.products?.[0]?.quantity || 1,
+        image: cart.products?.[0]?.product_id?.image || '',
+        seller_id: cart.products?.[0]?.product_id?.seller_id || null
+      }));
+      setCartItems(items);
+      return;
+    }
+    
+    const selectedProduct = sessionStorage.getItem('selectedProduct');
+    
+    if (selectedProduct) {
+      try {
+        const product = JSON.parse(selectedProduct);
+        
+        let imageUrl = product.image || '';
+        
+        if (!imageUrl || imageUrl === 'null' || imageUrl === '') {
+          imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+        } else if (!imageUrl.startsWith('http')) {
+          imageUrl = `${BACKEND_URL}${imageUrl}`;
         }
-      } else {
+        
+        // ✅ FIX: Use product._id as the id
+        const cartItem = [{
+          id: product._id,
+          product_id: product._id,
+          name: product.product_name,
+          price: parseFloat(product.price),
+          quantity: 1,
+          image: imageUrl,
+          seller_id: product.seller_id
+        }];
+        
+        setCartItems(cartItem);
+      } catch (e) {
         setCartItems([]);
       }
-    } catch (error) {
+    } else {
+      setCartItems([]);
+    }
+  } catch (error) {
       console.error('❌ Cart load error:', error);
       setCartItems([]);
     }
@@ -180,61 +177,6 @@ const Checkout = () => {
     navigate('/buyer_dashboard');
   };
 
-  // --- ADD TO CART FUNCTION ---
-const handleAddToCart = async (item) => {
-  if (!user?.id) {
-    alert('Please login first!');
-    return;
-  }
-
-  try {
-    setLoading(true);
-    
-    // ✅ CHANGE: buyer_id -> user_id
-    const cartData = {
-      user_id: user.id,  // <--- CHANGE THIS
-      products: [
-        {
-          product_id: item.id || item.product_id,
-          quantity: item.quantity || 1
-        }
-      ]
-    };
-
-    console.log("📡 Adding to cart:", cartData);
-
-    const response = await fetch(`${BACKEND_URL}/api/cart`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cartData)
-    });
-
-    const result = await response.json();
-    console.log("📡 Add to cart result:", result);
-
-    if (result.success) {
-      alert('✅ Added to cart! View full cart at /buyer_cart');
-      
-      // Update local state to show item is now in cart
-      setCartItems(prevItems => 
-        prevItems.map(prevItem => 
-          (prevItem.id === item.id) ? { ...prevItem, inCart: true } : prevItem
-        )
-      );
-      
-      // Clear session storage since it's now in database
-      sessionStorage.removeItem('selectedProduct');
-    } else {
-      alert('❌ Failed to add: ' + (result.message || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('❌ Add to cart error:', error);
-    alert('Failed to add to cart. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
-
   const handleRemoveItem = async (itemId) => {
     if (!window.confirm('Remove this item from your cart?')) {
       return;
@@ -253,7 +195,7 @@ const handleAddToCart = async (item) => {
     setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
   };
 
-  // --- PLACE ORDER WITH STOCK REDUCTION ---
+  // ✅ PLACE ORDER WITH STOCK REDUCTION
   const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
       alert('No items in cart!');
@@ -379,34 +321,6 @@ const handleAddToCart = async (item) => {
           border: 1px solid #eee !important;
           box-shadow: 0 4px 15px rgba(0,0,0,0.05) !important;
         }
-        .add-to-cart-btn {
-          background: linear-gradient(135deg, #28a745, #218838) !important;
-          color: #fff !important;
-          border: none !important;
-          padding: 6px 12px !important;
-          border-radius: 6px !important;
-          font-size: 12px !important;
-          font-weight: 600 !important;
-          cursor: pointer !important;
-          margin-right: 8px !important;
-          transition: all 0.3s ease !important;
-        }
-        .add-to-cart-btn:hover {
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4) !important;
-        }
-        .add-to-cart-btn:disabled {
-          background: #ccc !important;
-          cursor: not-allowed !important;
-        }
-        .added-badge {
-          background: #28a745 !important;
-          color: white !important;
-          padding: 4px 10px !important;
-          border-radius: 12px !important;
-          font-size: 11px !important;
-          font-weight: 600 !important;
-        }
       `}</style>
 
       <header className="header">
@@ -456,18 +370,6 @@ const handleAddToCart = async (item) => {
                 <div className="qty-col">{item.quantity}</div>
                 <div className="price-col">₱{(item.price * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
                 <div className="remove-col">
-
-                  {item.inCart ? (
-                    <span className="added-badge">✓ In Cart</span>
-                  ) : (
-                    <button 
-                      className="add-to-cart-btn" 
-                      onClick={() => handleAddToCart(item)}
-                      disabled={loading}
-                    >
-                      🛒 Add to Cart
-                    </button>
-                  )}
                   <button className="remove-btn" onClick={() => handleRemoveItem(item.id)}>🗑️ Remove</button>
                 </div>
               </div>
@@ -495,33 +397,6 @@ const handleAddToCart = async (item) => {
         <div className="cancel-order-section">
           <button className="cancel-order-btn" onClick={handleCancelOrder} disabled={cartItems.length === 0}>Cancel Order</button>
         </div>
-      </div>
-
-      {/* Continue Shopping Link */}
-      <div style={{ textAlign: 'center', margin: '20px 0' }}>
-        <a 
-          href="/buyer_shop" 
-          style={{ 
-            color: '#dc3545', 
-            fontWeight: '600',
-            textDecoration: 'none',
-            fontSize: '14px'
-          }}
-        >
-          ← Continue Shopping
-        </a>
-        <span style={{ margin: '0 10px', color: '#ccc' }}>|</span>
-        <a 
-          href="/buyer_cart" 
-          style={{ 
-            color: '#dc3545', 
-            fontWeight: '600',
-            textDecoration: 'none',
-            fontSize: '14px'
-          }}
-        >
-          View Full Cart 🛒
-        </a>
       </div>
 
       {showCancelModal && (
@@ -567,7 +442,7 @@ const handleAddToCart = async (item) => {
                 </label>
               </div>
             </div>
-            <div className="modal-footer">
+                      <div className="modal-footer">
               <button className="btn btn-secondary" onClick={handleReasonClose}>Back</button>
               <button className="btn btn-danger" onClick={handleReasonSubmit} disabled={!selectedReason}>Submit Cancellation</button>
             </div>
