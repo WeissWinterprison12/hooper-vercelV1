@@ -1,4 +1,4 @@
-// seller_messages.jsx - UPDATED: Add Reply and Delete functionality
+// seller_messages.jsx - UPDATED: Fix reply modal not closing
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -30,12 +30,10 @@ const SellerMessages = () => {
   const [editedName, setEditedName] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  // NEW: Send Message Modal State
+  // ✅ NEW: Send Message Modal State
   const [showSendModal, setShowSendModal] = useState(false);
   const [sending, setSending] = useState(false);
-  const [newMessage, setNewMessage] = useState({
-    message: ""
-  });
+  const [newMessage, setNewMessage] = useState({ message: "" });
   const [replyToBuyer, setReplyToBuyer] = useState(null);
 
   useEffect(() => {
@@ -88,8 +86,6 @@ const SellerMessages = () => {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
       const data = await response.json();
 
-      console.log("📡 Profile data:", data);
-
       let avatarUrl = defaultAvatar;
       
       if (data.profile_image) {
@@ -118,8 +114,6 @@ const SellerMessages = () => {
       const response = await fetch(`${BACKEND_URL}/api/messages/seller/${id}`);
       const result = await response.json();
       
-      console.log("📡 Messages data:", result);
-      
       if (result.success && result.messages) {
         setMessages(result.messages || []);
       } else {
@@ -136,7 +130,6 @@ const SellerMessages = () => {
   // PROFILE FUNCTIONS
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
-    console.log("📁 File selected:", file);
     
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
@@ -186,8 +179,6 @@ const SellerMessages = () => {
       return;
     }
 
-    console.log("📡 Saving profile...", { sellerId, newName });
-
     try {
       setUploading(true);
       
@@ -203,7 +194,6 @@ const SellerMessages = () => {
       }
       
       const result = await response.json();
-      console.log("📡 Name saved:", result);
 
       if (selectedFile) {
         const imageFormData = new FormData();
@@ -231,9 +221,9 @@ const SellerMessages = () => {
       setSelectedFile(null);
       setPreviewImage(null);
     }
-  }, [sellerId, editedName, adminProfile.name, selectedFile, fetchProfile]);
+  }, [sellerId, editedName, adminProfile.name, selectedFile]);
 
-  // NEW: SEND MESSAGE FUNCTION
+  // ✅ NEW: SEND MESSAGE FUNCTION
   const handleSendMessage = useCallback(async (e) => {
     e.preventDefault();
     
@@ -242,13 +232,8 @@ const SellerMessages = () => {
       return;
     }
 
-    if (!sellerId) {
+    if (!sellerId || !replyToBuyer) {
       alert("Session expired. Please login again.");
-      return;
-    }
-
-    if (!replyToBuyer) {
-      alert("No recipient found. Please try again.");
       return;
     }
 
@@ -276,7 +261,6 @@ const SellerMessages = () => {
       setNewMessage({ message: "" });
       setReplyToBuyer(null);
       setShowSendModal(false);
-      setSelectedMessage(null);
       
     } catch (error) {
       console.error("❌ Error sending message:", error);
@@ -286,45 +270,43 @@ const SellerMessages = () => {
     }
   }, [newMessage, sellerId, replyToBuyer]);
 
-  // NEW: DELETE MESSAGE FUNCTION
-  // UPDATE: Delete function to match your backend
-const handleDeleteMessage = useCallback(async () => {
-  if (!selectedMessage || !selectedMessage._id) {
-    alert("No message selected.");
-    return;
-  }
-
-  const confirmDelete = window.confirm("Are you sure you want to delete this message?");
-  if (!confirmDelete) return;
-
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/messages/${selectedMessage._id}`, {
-      method: "DELETE"
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Failed to delete message");
+  // ✅ NEW: DELETE MESSAGE FUNCTION
+  const handleDeleteMessage = useCallback(async () => {
+    if (!selectedMessage || !selectedMessage._id) {
+      alert("No message selected.");
+      return;
     }
 
-    console.log("📡 Message deleted:", result);
-    
-    alert("Message deleted successfully!");
-    setSelectedMessage(null);
-    await fetchMessages(sellerId);
-    
-  } catch (error) {
-    console.error("❌ Error deleting message:", error);
-    alert("Failed to delete message. Please try again.");
-  }
-}, [selectedMessage, sellerId]);
+    const confirmDelete = window.confirm("Are you sure you want to delete this message?");
+    if (!confirmDelete) return;
 
-  // NEW: OPEN REPLY MODAL
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/messages/${selectedMessage._id}`, {
+        method: "DELETE"
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to delete message");
+      }
+
+      console.log("📡 Message deleted:", result);
+      
+      alert("Message deleted successfully!");
+      setSelectedMessage(null);
+      await fetchMessages(sellerId);
+      
+    } catch (error) {
+      console.error("❌ Error deleting message:", error);
+      alert("Failed to delete message. Please try again.");
+    }
+  }, [selectedMessage, sellerId]);
+
+  // ✅ NEW: OPEN REPLY MODAL - NOW CLOSES MESSAGE MODAL
   const handleOpenReply = useCallback(() => {
     if (!selectedMessage) return;
     
-    // Get the buyer ID (sender_id for buyer messages)
     const buyerId = selectedMessage.sender_id;
     if (!buyerId) {
       alert("Cannot reply: No buyer ID found.");
@@ -334,6 +316,7 @@ const handleDeleteMessage = useCallback(async () => {
     setReplyToBuyer(buyerId);
     setNewMessage({ message: "" });
     setShowSendModal(true);
+    setSelectedMessage(null); // ✅ Closes the message details modal
   }, [selectedMessage]);
 
   // HELPER FUNCTIONS
@@ -363,8 +346,6 @@ const handleDeleteMessage = useCallback(async () => {
   }, [previewImage, adminProfile.avatar]);
 
   const handleMessageClick = async (message) => {
-    console.log('💬 Message clicked:', message);
-    
     try {
       await fetch(`${BACKEND_URL}/api/messages/${message._id}/read`, {
         method: "PUT",
@@ -380,9 +361,6 @@ const handleDeleteMessage = useCallback(async () => {
     setSelectedMessage(message);
   };
 
-  // =====================================================
-  // ✅ UPDATED LOADING SCREEN (SAME AS seller_orders.jsx)
-  // =====================================================
   if (loading || !sellerId) {
     return (
       <div className="seller-messages-app" style={{display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#000', color: '#fff'}}>
@@ -434,145 +412,143 @@ const handleDeleteMessage = useCallback(async () => {
         </div>
       )}
 
-      {/* NEW: SEND MESSAGE MODAL */}
+      {/* ✅ NEW: SEND MESSAGE MODAL */}
       {showSendModal && (
-        <div className="send-modal" onClick={() => setShowSendModal(false)}>
+        <div className="send-modal" onClick={() => { setShowSendModal(false); setReplyToBuyer(null); }}>
           <div className="send-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-modal" onClick={() => setShowSendModal(false)} type="button">×</button>
+            <button className="close-modal" onClick={() => { setShowSendModal(false); setReplyToBuyer(null); }} type="button">×</button>
             
             <h2 className="send-modal-title">📤 Send Message</h2>
             <p className="send-modal-subtitle">
-              Replying to: {selectedMessage?.fullname || selectedMessage?.sender_username || `User #${selectedMessage?.sender_id}`}
+              Replying to: {messages.find(m => m.sender_id === replyToBuyer)?.fullname || `User #${replyToBuyer}`}
             </p>
             
             <form onSubmit={handleSendMessage}>
               <div className="message-textarea-container">
-                <label className="message-label">Your Message</label>
-                <textarea 
-                  value={newMessage.message}
-                  onChange={(e) => setNewMessage({ ...newMessage, message: e.target.value })}
-                  className="message-textarea"
-                  placeholder="Type your reply here..."
-                  rows="5"
-                  required
-                />
-              </div>
+                <label className="message-label">              <textarea 
+                value={newMessage.message}
+                onChange={(e) => setNewMessage({ ...newMessage, message: e.target.value })}
+                className="message-textarea"
+                placeholder="Type your reply here..."
+                rows="5"
+                required
+              />
+            </div>
 
-              <button type="submit" className="send-btn" disabled={sending}>
-                {sending ? "⏳ Sending..." : "📤 Send Reply"}
-              </button>
-              <button type="button" className="cancel-btn" onClick={() => setShowSendModal(false)}>
-                ❌ Cancel
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* SIDEBAR */}
-      <div className="sidebar">
-        <div className="admin-profile">
-          <div className="profile-avatar" onClick={() => setShowProfileModal(true)} title="Click to edit profile">
-            {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
-              <img src={getDisplayAvatar()} alt="Profile" onError={handleAvatarError} />
-            ) : (
-              <div className="question-mark-avatar">?</div>
-            )}
-          </div>
-          <p className="profile-name">{adminProfile.name || "Set your name"}</p>
-        </div>
-        
-        <ul>
-          <li><a href="/seller_dashboard">📊 Dashboard</a></li>
-          <li><a href="/seller_product">📦 Products</a></li>
-          <li><a href="/seller_orders">📋 Orders</a></li>
-          <li><a className="active" href="/seller_messages">💬 Messages</a></li>
-          <br /><br /><br />
-          <li><a href="#" onClick={handleLogout}>🚪 Logout</a></li>
-        </ul>
-
-        <div className="sidebar-logo">
-          <img src={logo} alt="Hoopers Fits" onClick={() => navigate("/seller_dashboard")} style={{cursor: 'pointer'}} />
+            <button type="submit" className="send-btn" disabled={sending}>
+              {sending ? "⏳ Sending..." : "📤 Send Reply"}
+            </button>
+            <button type="button" className="cancel-btn" onClick={() => { setShowSendModal(false); setReplyToBuyer(null); }}>
+              ❌ Cancel
+            </button>
+          </form>
         </div>
       </div>
+    )}
 
-      {/* MAIN CONTENT */}
-      <div className="main">
-                <div className="top-bar">
-          <h1>💬 Messages ({messages.length})</h1>
-          {unreadCount > 0 && (
-            <span style={{background: '#dc3545', color: '#fff', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', marginLeft: '10px'}}>
-              {unreadCount} Unread
-            </span>
-          )}
-        </div>
-
-        <div className="messages-container">
-          <h2>💬 INBOX</h2>
-          <p>Manage your customer inquiries and messages.</p>
-
-          {loadingMessages ? (
-            <div className="loading-container">
-              <div className="loading-spinner"></div>
-              <p>Loading messages...</p>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="no-messages">
-              <div>📭</div>
-              <h3>No messages yet</h3>
-              <p>Messages from customers will appear here.</p>
-            </div>
+    {/* SIDEBAR */}
+    <div className="sidebar">
+      <div className="admin-profile">
+        <div className="profile-avatar" onClick={() => setShowProfileModal(true)} title="Click to edit profile">
+          {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
+            <img src={getDisplayAvatar()} alt="Profile" onError={handleAvatarError} />
           ) : (
-            <div className="messages-table">
-              <div className="table-header">
-                <div className="header-sender">Sender</div>
-                <div className="header-subject">Message</div>
-                <div className="header-date">Date</div>
-                <div className="header-status">Status</div>
-              </div>
-              
-              {messages.map((message) => (
-                <div 
-                  key={message._id || message.id} 
-                  className={`table-row ${isMessageUnread(message) ? 'unread-row' : ''}`}
-                  onClick={() => handleMessageClick(message)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="sender">{message.fullname || message.sender_username || message.name || `User #${message.sender_id}`}</div>
-                  <div className="subject" title={message.message}>
-                    {message.message?.length > 50 ? `${message.message.substring(0, 50)}...` : message.message || 'No message'}
-                  </div>
-                  <div className="date">{formatDate(message.createdAt || message.created_at)}</div>
-                  <div className={`status ${isMessageUnread(message) ? 'unread' : 'read'}`}>
-                    {isMessageUnread(message) ? 'Unread' : 'Read'}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <div className="question-mark-avatar">?</div>
           )}
         </div>
+        <p className="profile-name">{adminProfile.name || "Set your name"}</p>
+      </div>
+      
+      <ul>
+        <li><a href="/seller_dashboard">📊 Dashboard</a></li>
+        <li><a href="/seller_product">📦 Products</a></li>
+        <li><a href="/seller_orders">📋 Orders</a></li>
+        <li><a className="active" href="/seller_messages">💬 Messages</a></li>
+        <br /><br /><br />
+        <li><a href="#" onClick={handleLogout}>🚪 Logout</a></li>
+      </ul>
 
-        {/* Message details modal */}
-        {selectedMessage && (
-          <div className="message-modal" onClick={() => setSelectedMessage(null)}>
-            <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="message-header">
-                <h3>{selectedMessage.message}</h3>
-                <button className="close-message" onClick={() => setSelectedMessage(null)}>×</button>
-              </div>
-              <div className="message-details">
-                <p><strong>👤 From:</strong> {selectedMessage.fullname || selectedMessage.sender_username || selectedMessage.name || `User #${selectedMessage.sender_id}`}</p>
-                <p><strong>📧 Email:</strong> {selectedMessage.email}</p>
-                <p><strong>📅 Date:</strong> {new Date(selectedMessage.createdAt || selectedMessage.created_at).toLocaleString()}</p>
-              </div>
-              <div className="message-actions">
-                <button className="reply-btn" onClick={handleOpenReply}>💬 Reply</button>
-                <button className="delete-btn" onClick={handleDeleteMessage}>🗑️ Delete</button>
-              </div>
+      <div className="sidebar-logo">
+        <img src={logo} alt="Hoopers Fits" onClick={() => navigate("/seller_dashboard")} style={{cursor: 'pointer'}} />
+      </div>
+    </div>
+
+    {/* MAIN CONTENT */}
+    <div className="main">
+      <div className="top-bar">
+        <h1>💬 Messages ({messages.length})</h1>
+        {unreadCount > 0 && (
+          <span style={{background: '#dc3545', color: '#fff', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', marginLeft: '10px'}}>
+            {unreadCount} Unread
+          </span>
+        )}
+      </div>
+
+      <div className="messages-container">
+        <h2>💬 INBOX</h2>
+        <p>Manage your customer inquiries and messages.</p>
+
+        {loadingMessages ? (
+          <div className="loading-container">
+            <div className="loading-spinner"></div>
+            <p>Loading messages...</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="no-messages">
+            <div>📭</div>
+            <h3>No messages yet</h3>
+            <p>Messages from customers will appear here.</p>
+          </div>
+        ) : (
+          <div className="messages-table">
+            <div className="table-header">
+              <div className="header-sender">Sender</div>
+              <div className="header-subject">Message</div>
+              <div className="header-date">Date</div>
+              <div className="header-status">Status</div>
             </div>
+            
+            {messages.map((message) => (
+              <div 
+                key={message._id || message.id} 
+                className={`table-row ${isMessageUnread(message) ? 'unread-row' : ''}`}
+                onClick={() => handleMessageClick(message)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="sender">{message.fullname || message.sender_username || message.name || `User #${message.sender_id}`}</div>
+                <div className="subject" title={message.message}>
+                  {message.message?.length > 50 ? `${message.message.substring(0, 50)}...` : message.message || 'No message'}
+                </div>
+                <div className="date">{formatDate(message.createdAt || message.created_at)}</div>
+                <div className={`status ${isMessageUnread(message) ? 'unread' : 'read'}`}>
+                  {isMessageUnread(message) ? 'Unread' : 'Read'}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
+
+      {/* Message details modal - NOW HAS WORKING REPLY & DELETE */}
+      {selectedMessage && !showSendModal && (
+        <div className="message-modal" onClick={() => setSelectedMessage(null)}>
+          <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="message-header">
+              <h3>{selectedMessage.message}</h3>
+              <button className="close-message" onClick={() => setSelectedMessage(null)}>×</button>
+            </div>
+            <div className="message-details">
+              <p><strong>👤 From:</strong> {selectedMessage.fullname || selectedMessage.sender_username || selectedMessage.name || `User #${selectedMessage.sender_id}`}</p>
+              <p><strong>📧 Email:</strong> {selectedMessage.email}</p>
+              <p><strong>📅 Date:</strong> {new Date(selectedMessage.createdAt || selectedMessage.created_at).toLocaleString()}</p>
+            </div>
+            <div className="message-actions">
+              <button className="reply-btn" onClick={handleOpenReply}>💬 Reply</button>
+              <button className="delete-btn" onClick={handleDeleteMessage}>🗑️ Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
