@@ -518,7 +518,6 @@ const BuyerDashboard = () => {
               )}
             </div>
             
-            {/* RECENT ORDERS TABLE */}
             <div className="orders">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h4>📦 Recent Orders</h4>
@@ -598,7 +597,7 @@ const BuyerDashboard = () => {
             </div>
           </div>
         </div>
-
+ 
 
       {showMessageModal && (
         <div className="message-modal" onClick={() => setShowMessageModal(false)}>

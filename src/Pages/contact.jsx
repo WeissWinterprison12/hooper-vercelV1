@@ -171,15 +171,17 @@ const Contact = () => {
 
   const userName = userProfile?.fullName || userProfile?.username || "Buyer";
   
-  const userAvatar = userProfile?.profile_image 
-    ? userProfile.profile_image
+  // ✅ FIXED: Properly handle avatar URL
+  const userAvatar = userProfile?.profile_image
+    ? (userProfile.profile_image.startsWith('http')
+        ? userProfile.profile_image
+        : `${BACKEND_URL}${userProfile.profile_image}`)
     : defaultAvatar;
 
+  // ✅ FIXED: Only set fallback src, don't replace HTML
   const handleImageError = (e) => {
-    e.target.style.display = 'none';
-    if (e.target.parentNode) {
-      e.target.parentNode.innerHTML = '👤';
-    }
+    e.target.onerror = null; // Prevent infinite loop
+    e.target.src = defaultAvatar;
   };
 
   if (loading) {
