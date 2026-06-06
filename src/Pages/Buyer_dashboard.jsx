@@ -472,7 +472,7 @@ const BuyerDashboard = () => {
 
           <div className="right-content">
             <div className="small-cards">
-              <div className="small-card" onClick={() => setShowMessageModal(true)}>
+              <div className="small-card" onClick={() => navigate('buyer_messages')}>
                 <h3>💬</h3><p>Need Help? Message Us</p>
               </div>
               <div className="small-card" onClick={() => navigate('/buyer_orders')}>
