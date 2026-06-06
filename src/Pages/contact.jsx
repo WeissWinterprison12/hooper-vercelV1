@@ -256,9 +256,9 @@ const Contact = () => {
           <div className="success-icon">✅</div>
           <h1 className="success-title">Message Sent Successfully!</h1>
           <p className="success-message">
-            Your default email app has opened with a pre-filled message to {SUPPORT_EMAIL}. 
+             Well Get back at you in 24 - 48 Hours{SUPPORT_EMAIL}. 
             <br />
-            Please send the email to complete your inquiry.
+            Thank you!
           </p>
           <button className="continue-btn" onClick={() => setSuccess(false)}>
             Send Another Message
