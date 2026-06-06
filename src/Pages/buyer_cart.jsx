@@ -1,5 +1,5 @@
-// buyer_cart.jsx - UPDATED TO MATCH BACKEND
-import React, { useState, useEffect, useCallback } from "react";
+// buyer_cart.jsx - UPDATED WITH PROFILE EDIT FUNCTIONALITY
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import logo from "../Images/HoopersFits.png";
@@ -12,11 +12,25 @@ const BuyerCart = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
-  const [userId, setUserId] = useState(null); // Changed from buyerId to userId
+  const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [cartItems, setCartItems] = useState([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [processing, setProcessing] = useState(false);
+
+  // Profile Modal Refs & State
+  const fileInputRef = useRef(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [editedName, setEditedName] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  const [profile, setProfile] = useState({
+    fullName: "",
+    username: "",
+    avatar: defaultAvatar
+  });
 
   // --- AUTH CHECK ---
   useEffect(() => {
@@ -34,7 +48,8 @@ const BuyerCart = () => {
           return;
         }
 
-        setUserId(session.id); // Set userId from session
+        setUserId(session.id);
+        await fetchProfile(session.id);
         await fetchCartItems(session.id);
       } catch (error) {
         console.error("❌ Auth error:", error);
@@ -46,6 +61,41 @@ const BuyerCart = () => {
 
     initializeCart();
   }, [navigate]);
+
+  // --- FETCH PROFILE FROM MONGODB ---
+  const fetchProfile = async (id) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch profile");
+      }
+      
+      const data = await response.json();
+      console.log("📡 Profile data:", data);
+
+      let avatarUrl = defaultAvatar;
+      
+      if (data.profile_image) {
+        if (data.profile_image.startsWith("http")) {
+          avatarUrl = data.profile_image;
+        } else {
+          avatarUrl = `${BACKEND_URL}${data.profile_image}`;
+        }
+      }
+          
+      setProfile({
+        fullName: data.fullName || data.username || "",
+        username: data.username || "",
+        avatar: avatarUrl
+      });
+      setEditedName(data.fullName || data.username || "");
+      
+    } catch (err) {
+      console.error("❌ Error fetching profile:", err);
+      setProfile({ fullName: "", username: "", avatar: defaultAvatar });
+    }
+  };
 
   // --- FETCH CART ITEMS ---
   const fetchCartItems = async (id) => {
@@ -109,7 +159,7 @@ const BuyerCart = () => {
         body: JSON.stringify({ 
           itemId: itemId, 
           quantity: newQuantity,
-          userId: userId // Changed from buyerId to userId
+          userId: userId
         })
       });
 
@@ -151,7 +201,7 @@ const BuyerCart = () => {
       const response = await fetch(`${BACKEND_URL}/api/cart/remove/${itemId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: userId }) // Changed from buyerId to userId
+        body: JSON.stringify({ userId: userId })
       });
 
       if (response.ok) {
@@ -188,6 +238,135 @@ const BuyerCart = () => {
     navigate("/login");
   };
 
+  // --- FILE SELECT ---
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files[0];
+    console.log("📁 File selected:", file);
+    
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image too large! Please select an image under 2MB.");
+        return;
+      }
+      
+      setSelectedFile(file);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPreviewImage(event.target.result);
+      };
+      reader.onerror = (error) => {
+        console.error("❌ FileReader error:", error);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const openFileExplorer = useCallback(() => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  }, []);
+
+  // --- CANCEL PROFILE EDIT ---
+  const handleCancelProfile = useCallback(() => {
+    setShowProfileModal(false);
+    setSelectedFile(null);
+    setPreviewImage(null);
+    setEditedName(profile.fullName || profile.username || "");
+  }, [profile.fullName, profile.username]);
+
+  // --- SAVE PROFILE ---
+  const handleSaveProfile = useCallback(async () => {
+    if (!userId) {
+      alert("No user ID found. Please login again.");
+      return;
+    }
+
+    const newName = editedName && editedName.trim() ? editedName.trim() : profile.fullName || profile.username;
+
+    if (!newName) {
+      alert("Please enter a name.");
+      return;
+    }
+
+    console.log("📡 Saving profile...", { userId, newName });
+
+    try {
+      setUploading(true);
+      
+      const response = await fetch(`${BACKEND_URL}/api/users/${userId}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fullName: newName
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || "Failed to update name");
+      }
+      
+      const result = await response.json();
+      console.log("📡 Name saved:", result);
+
+      if (selectedFile) {
+        const imageFormData = new FormData();
+        imageFormData.append("profile_image", selectedFile);
+
+        const imageResponse = await fetch(`${BACKEND_URL}/api/users/${userId}/image`, {
+          method: "PUT",
+          body: imageFormData
+        });
+
+        if (!imageResponse.ok) {
+          console.log("⚠️ Image upload failed, but name was saved");
+        } else {
+          const imageResult = await imageResponse.json();
+          console.log("📡 Image saved:", imageResult);
+        }
+      }
+      
+      await fetchProfile(userId);
+      
+      alert("Profile updated successfully!");
+      
+    } catch (err) {
+      console.error("❌ Save error:", err);
+      alert(`Failed to update profile: ${err.message}`);
+    } finally {
+      setUploading(false);
+      setShowProfileModal(false);
+      setSelectedFile(null);
+      setPreviewImage(null);
+    }
+  }, [userId, editedName, profile, selectedFile]);
+
+  const handleNameChange = useCallback((e) => {
+    setEditedName(e.target.value);
+  }, []);
+
+  const handleAvatarError = useCallback((e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
+  }, []);
+
+  const getDisplayAvatar = useCallback(() => {
+    return previewImage || profile.avatar || defaultAvatar;
+  }, [previewImage, profile.avatar]);
+
+  const getDisplayName = () => {
+    return editedName || profile.fullName || profile.username || "Buyer";
+  };
+
+  const getDisplayUsername = () => {
+    return profile.username || "@user";
+  };
+
   // --- LOADING SCREEN ---
   if (loading) {
     return (
@@ -208,14 +387,89 @@ const BuyerCart = () => {
 
   return (
     <div className="buyer-dashboard-app">
+      {/* PROFILE MODAL */}
+      {showProfileModal && (
+        <div className="profile-modal" onClick={handleCancelProfile}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-modal" onClick={handleCancelProfile} type="button">×</button>
+            
+            <div className="modal-image-upload" onClick={openFileExplorer}>
+              {(previewImage || profile.avatar) ? (
+                <img 
+                  src={previewImage || profile.avatar} 
+                  alt="Preview" 
+                  style={{
+                    width: '100%', 
+                    height: '100%', 
+                    borderRadius: '50%', 
+                    objectFit: 'cover'
+                  }} 
+                  onError={handleAvatarError}
+                />
+              ) : (
+                <div className="question-mark-avatar">?</div>
+              )}
+              
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+                style={{ display: 'none' }} 
+              />
+            </div>
+            
+            <h2 className="modal-title">Update Profile</h2>
+            <p className="modal-subtitle">Click avatar to change profile image</p>
+            
+            <input 
+              type="text" 
+              value={editedName} 
+              onChange={handleNameChange} 
+              className="profile-name-input"
+              placeholder="Enter your display name" 
+              autoComplete="off" 
+            />
+
+            <button 
+              className="get-image-btn" 
+              onClick={handleSaveProfile} 
+              type="button"
+              disabled={uploading}
+            >
+              {uploading ? "⏳ Saving..." : "💾 Save Changes"}
+            </button>
+            <button 
+              className="cancel-btn" 
+              onClick={handleCancelProfile} 
+              type="button"
+            >
+              ❌ Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
-          <div className="profile-avatar" title="Profile">
-             <img src={defaultAvatar} alt="User" />
+          <div 
+            className="profile-avatar" 
+            onClick={() => setShowProfileModal(true)}
+            title="Click to edit profile"
+          >
+            {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
+              <img 
+                src={getDisplayAvatar()} 
+                alt="Profile" 
+                onError={handleAvatarError}
+              />
+            ) : (
+              <div className="question-mark-avatar">?</div>
+            )}
           </div>
-          <p className="profile-name">My Cart</p>
-          <p className="profile-username">Shopping</p>
+          <p className="profile-name">{getDisplayName()}</p>
+          <p className="profile-username">@{getDisplayUsername()}</p>
         </div>
         
         <ul>
@@ -436,11 +690,12 @@ const BuyerCart = () => {
             position: sticky;
             top: 20px;
             border: 1px solid rgba(220, 53, 69, 0.1);
-             margin-bottom: 20px;
+            margin-bottom: 20px;
             color: #1a1a1a;
             font-weight: 700;
         }
-             .summary-row {
+
+        .summary-row {
             display: flex;
             justify-content: space-between;
             margin-bottom: 15px;
