@@ -1,4 +1,4 @@
-// buyer_messages.jsx - NEW: Buyer messaging interface
+// buyer_messages.jsx - UPDATED: Send to ALL sellers at once
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -25,16 +25,18 @@ const BuyerMessages = () => {
   const [sentMessages, setSentMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState(null);
-  const [activeTab, setActiveTab] = useState('inbox'); // 'inbox' or 'sent'
+  const [activeTab, setActiveTab] = useState('inbox');
   
   // Send message state
   const [showSendModal, setShowSendModal] = useState(false);
   const [sending, setSending] = useState(false);
   const [newMessage, setNewMessage] = useState({
-    receiver_id: "",
     message: ""
   });
 
+  // Sellers list (for sending to all)
+  const [sellers, setSellers] = useState([]);
+  
   // Profile Modal State
   const fileInputRef = useRef(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -80,6 +82,24 @@ const BuyerMessages = () => {
     initialize();
   }, [navigate]);
 
+  // Fetch sellers
+  useEffect(() => {
+    const fetchSellers = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/users/sellers`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setSellers(data.users || []);
+        }
+      } catch (error) {
+        console.error("Error fetching sellers:", error);
+      }
+    };
+    
+    fetchSellers();
+  }, []);
+
   const handleLogout = () => {
     console.log("🚪 Logging out...");
     logout();
@@ -87,13 +107,10 @@ const BuyerMessages = () => {
     navigate("/login");
   };
 
-  // FETCH PROFILE
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
       const data = await response.json();
-
-      console.log("📡 Profile data:", data);
 
       let avatarUrl = defaultAvatar;
       
@@ -117,21 +134,15 @@ const BuyerMessages = () => {
     }
   };
 
-  // FETCH MESSAGES
   const fetchMessages = async (id) => {
     try {
       setLoadingMessages(true);
       
-      // Fetch inbox (messages sent TO buyer)
       const inboxResponse = await fetch(`${BACKEND_URL}/api/messages/buyer/${id}`);
       const inboxResult = await inboxResponse.json();
       
-      // Fetch sent (messages sent BY buyer)
       const sentResponse = await fetch(`${BACKEND_URL}/api/messages/buyer/${id}/sent`);
       const sentResult = await sentResponse.json();
-      
-      console.log("📡 Inbox data:", inboxResult);
-      console.log("📡 Sent data:", sentResult);
       
       if (inboxResult.success) {
         setInboxMessages(inboxResult.messages || []);
@@ -149,7 +160,7 @@ const BuyerMessages = () => {
     }
   };
 
-  // SEND MESSAGE
+  // SEND MESSAGE - Send to ALL sellers
   const handleSendMessage = useCallback(async (e) => {
     e.preventDefault();
     
@@ -163,31 +174,37 @@ const BuyerMessages = () => {
       return;
     }
 
-    // For now, we'll send to the admin/seller (hardcoded for demo - you can make this dynamic)
-    const adminId = "678f1a2b3c4d5e6f7g8h9i0a"; // Replace with actual admin/seller ID or fetch from API
-    
+    if (sellers.length === 0) {
+      alert("No sellers available. Please try again later.");
+      return;
+    }
+
     try {
       setSending(true);
       
-      const response = await fetch(`${BACKEND_URL}/api/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sender_id: buyerId,
-          receiver_id: adminId,
-          message: newMessage.message.trim()
+      // Send to ALL sellers
+      const sendPromises = sellers.map(seller => 
+        fetch(`${BACKEND_URL}/api/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sender_id: buyerId,
+            receiver_id: seller._id,
+            message: newMessage.message.trim()
+          })
         })
-      });
+      );
 
-      const result = await response.json();
+      const results = await Promise.all(sendPromises);
+      const allSuccessful = results.every(res => res.ok);
 
-      if (result.success) {
-        alert("Message sent successfully!");
-        setNewMessage({ receiver_id: "", message: "" });
+      if (allSuccessful) {
+        alert("Message sent to all sellers!");
+        setNewMessage({ message: "" });
         setShowSendModal(false);
         await fetchMessages(buyerId);
       } else {
-        alert(result.message || "Failed to send message");
+        alert("Failed to send some messages. Please try again.");
       }
     } catch (error) {
       console.error("❌ Error sending message:", error);
@@ -195,12 +212,11 @@ const BuyerMessages = () => {
     } finally {
       setSending(false);
     }
-  }, [newMessage, buyerId]);
+  }, [newMessage, buyerId, sellers]);
 
   // PROFILE FUNCTIONS
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
-    console.log("📁 File selected:", file);
     
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
@@ -250,8 +266,6 @@ const BuyerMessages = () => {
       return;
     }
 
-    console.log("📡 Saving profile...", { buyerId, newName });
-
     try {
       setUploading(true);
       
@@ -267,7 +281,6 @@ const BuyerMessages = () => {
       }
       
       const result = await response.json();
-      console.log("📡 Name saved:", result);
 
       if (selectedFile) {
         const imageFormData = new FormData();
@@ -295,9 +308,8 @@ const BuyerMessages = () => {
       setSelectedFile(null);
       setPreviewImage(null);
     }
-  }, [buyerId, editedName, profile, selectedFile, fetchProfile]);
+  }, [buyerId, editedName, profile, selectedFile]);
 
-  // HELPER FUNCTIONS
   const formatDate = (timestamp) => {
     if (!timestamp) return 'Just now';
     
@@ -319,16 +331,11 @@ const BuyerMessages = () => {
     return !message.is_read || message.status === 'unread';
   };
 
-  // ✅ FIXED: Correct syntax without malformed comment
   const getDisplayAvatar = useCallback(() => {
     return previewImage || profile.avatar || defaultAvatar;
   }, [previewImage, profile.avatar]);
 
-  // ✅ FIXED: Only mark as read for INBOX messages, not sent
   const handleMessageClick = async (message) => {
-    console.log('💬 Message clicked:', message);
-    
-    // Only mark as read if it's an inbox message
     if (activeTab === 'inbox') {
       try {
         await fetch(`${BACKEND_URL}/api/messages/${message._id}/read`, {
@@ -346,9 +353,7 @@ const BuyerMessages = () => {
     setSelectedMessage(message);
   };
 
-  // =====================================================
-  // ✅ UPDATED LOADING SCREEN (SAME AS BUYER_DASHBOARD)
-  // =====================================================
+  // LOADING SCREEN
   if (loading || !buyerId) {
     return (
       <div style={{
@@ -385,8 +390,6 @@ const BuyerMessages = () => {
 
   const unreadCount = inboxMessages.filter(m => isMessageUnread(m)).length;
   const sentCount = sentMessages.length;
-
-  // Determine which messages to display based on active tab
   const displayedMessages = activeTab === 'inbox' ? inboxMessages : sentMessages;
 
   return (
@@ -430,20 +433,20 @@ const BuyerMessages = () => {
         </div>
       )}
 
-      {/* SEND MESSAGE MODAL */}
+      {/* SEND MESSAGE MODAL - Send to ALL sellers */}
       {showSendModal && (
         <div className="send-modal" onClick={() => setShowSendModal(false)}>
           <div className="send-modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-modal" onClick={() => setShowSendModal(false)} type="button">×</button>
             
             <h2 className="send-modal-title">📤 Send Message</h2>
-            <p className="send-modal-subtitle">Send a message to the seller/admin</p>
+            <p className="send-modal-subtitle">Your message will be sent to ALL sellers</p>
             
             <form onSubmit={handleSendMessage}>
               <div className="message-textarea-container">
                 <label className="message-label">Your Message</label>
                 <textarea 
-                  value={newMessage.message}
+                                    value={newMessage.message}
                   onChange={(e) => setNewMessage({ ...newMessage, message: e.target.value })}
                   className="message-textarea"
                   placeholder="Type your message here..."
@@ -452,8 +455,8 @@ const BuyerMessages = () => {
                 />
               </div>
 
-                            <button type="submit" className="send-btn" disabled={sending}>
-                {sending ? "⏳ Sending..." : "📤 Send Message"}
+              <button type="submit" className="send-btn" disabled={sending}>
+                {sending ? "⏳ Sending..." : "📤 Send to All Sellers"}
               </button>
               <button type="button" className="cancel-btn" onClick={() => setShowSendModal(false)}>
                 ❌ Cancel
@@ -592,7 +595,7 @@ const BuyerMessages = () => {
               <div className="message-actions">
                 {activeTab === 'inbox' && (
                   <button className="reply-btn" onClick={() => {
-                    setNewMessage({ ...newMessage, message: `Re: ${selectedMessage.message}\n\n` });
+                    setNewMessage({ message: `Re: ${selectedMessage.message}\n\n` });
                     setShowSendModal(true);
                     setSelectedMessage(null);
                   }}>
