@@ -439,7 +439,6 @@ const BuyerDashboard = () => {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
       <div className="main">
         <div className="top-bar"><h1>Dashboard Overview</h1></div>
 
@@ -471,9 +470,7 @@ const BuyerDashboard = () => {
             </div>
           </div>
 
-          <div className="right-content">
-            // buyer_dashboard.jsx - Continued from line 477
-// ... (Previous code from lines 1-476)
+
 
             <div className="small-cards">
               <div className="small-card" onClick={() => setShowMessageModal(true)}>
@@ -601,9 +598,8 @@ const BuyerDashboard = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* MESSAGE MODAL (SAME AS BUYER_ORDERS) */}
+
       {showMessageModal && (
         <div className="message-modal" onClick={() => setShowMessageModal(false)}>
           <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
