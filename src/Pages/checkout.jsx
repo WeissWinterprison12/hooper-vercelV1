@@ -1,4 +1,4 @@
-// Checkout.jsx - WITH STOCK REDUCTION
+// checkout.jsx - WITH ADD TO CART BUTTON
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -154,10 +154,10 @@ const Checkout = () => {
       setCartItems([]);
     }
   } catch (error) {
-      console.error('❌ Cart load error:', error);
-      setCartItems([]);
-    }
-  };
+    console.error('❌ Cart load error:', error);
+    setCartItems([]);
+  }
+};
 
   const handleLogout = () => {
     console.log("🚪 Logging out...");
@@ -175,6 +175,48 @@ const Checkout = () => {
 
   const handleProfileClick = () => {
     navigate('/buyer_dashboard');
+  };
+
+  // ✅ ADD TO CART - Add item back to cart from checkout
+  const handleAddToCart = async (item) => {
+    try {
+      setLoading(true);
+      
+      // Save to sessionStorage for single product checkout flow
+      const productData = {
+        _id: item.id || item.product_id,
+        product_name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image,
+        seller_id: item.seller_id
+      };
+      
+      sessionStorage.setItem('selectedProduct', JSON.stringify(productData));
+      
+      // Also try to add to backend cart if user is logged in
+      if (user?.id) {
+        await fetch(`${BACKEND_URL}/api/cart/add`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            productId: item.id || item.product_id,
+            quantity: item.quantity
+          })
+        });
+      }
+      
+      alert('✅ Product added to cart!');
+      
+      // Refresh cart items
+      loadCartItems(user.id);
+      
+    } catch (error) {
+      console.error("❌ Error adding to cart:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRemoveItem = async (itemId) => {
@@ -321,6 +363,29 @@ const Checkout = () => {
           border: 1px solid #eee !important;
           box-shadow: 0 4px 15px rgba(0,0,0,0.05) !important;
         }
+        .action-btn {
+          padding: 6px 12px;
+          border: none;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .add-btn {
+          background: #28a745;
+          color: white;
+        }
+        .add-btn:hover {
+          background: #218838;
+        }
+        .remove-btn {
+          background: #dc3545;
+          color: white;
+        }
+        .remove-btn:hover {
+          background: #c82333;
+        }
       `}</style>
 
       <header className="header">
@@ -370,7 +435,20 @@ const Checkout = () => {
                 <div className="qty-col">{item.quantity}</div>
                 <div className="price-col">₱{(item.price * item.quantity).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
                 <div className="remove-col">
-                  <button className="remove-btn" onClick={() => handleRemoveItem(item.id)}>🗑️ Remove</button>
+                  <button 
+                    className="action-btn add-btn" 
+                    onClick={() => handleAddToCart(item)}
+                    title="Add to Cart"
+                  >
+                    🛒 Add to Cart
+                  </button>
+                  <button 
+                    className="action-btn remove-btn" 
+                    onClick={() => handleRemoveItem(item.id)}
+                    title="Remove Item"
+                  >
+                    🗑️ Remove
+                  </button>
                 </div>
               </div>
             ))
@@ -403,7 +481,7 @@ const Checkout = () => {
         <div className="modal-overlay">
           <div className="cancel-modal">
             <div className="modal-header"><h3>Are you sure you want to cancel this order?</h3></div>
-            <div className="modal-body"><p>This action cannot be undone.</p></div>
+                    <div className="modal-body"><p>This action cannot be undone.</p></div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={handleCancelConfirmNo}>No</button>
               <button className="btn btn-danger" onClick={handleCancelConfirmYes}>Yes, I want to cancel</button>
@@ -442,7 +520,7 @@ const Checkout = () => {
                 </label>
               </div>
             </div>
-                      <div className="modal-footer">
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={handleReasonClose}>Back</button>
               <button className="btn btn-danger" onClick={handleReasonSubmit} disabled={!selectedReason}>Submit Cancellation</button>
             </div>

@@ -20,6 +20,7 @@ import BuyerShop from "./Pages/Buyer_shop";
 import BuyerDashboard from "./Pages/Buyer_dashboard";
 import BuyerOrders from "./Pages/buyer_orders";
 import BuyerMessages from "./Pages/buyer_messages";
+import BuyerCart from "./Pages/buyer_cart";
 import Checkout from "./Pages/checkout";
 
 import SellerDashboard from "./Pages/seller_dashboard";
@@ -84,6 +85,15 @@ function App() {
             element={
               <BuyerRoute>
                 <BuyerMessages />
+              </BuyerRoute>
+            }
+          />
+
+          <Route
+            path="/buyer_cart"
+            element={
+              <BuyerRoute>
+                <BuyerCart />
               </BuyerRoute>
             }
           />
