@@ -1,4 +1,4 @@
-// Contact.jsx - UPDATED: Opens email client to send message
+// Contact.jsx - UPDATED: Sends message via backend API
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -110,7 +110,7 @@ const Contact = () => {
     navigate('/checkout');
   };
 
-  // ✅ UPDATED: Opens default email client with pre-filled message AND sets reply-to address
+  // ✅ UPDATED: Sends message via backend API (not mailto)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -123,27 +123,39 @@ const Contact = () => {
       return;
     }
 
+    // Validate email
+    if (!formData.email.trim()) {
+      setError("Please enter your email address");
+      setSubmitting(false);
+      return;
+    }
+
+    // Validate fullname
+    if (!formData.fullname.trim()) {
+      setError("Please enter your full name");
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      // Create email subject and body
-      const subject = encodeURIComponent(`Contact from ${formData.fullname || "Customer"}`);
-      const body = encodeURIComponent(
-        `Name: ${formData.fullname || "N/A"}\n` +
-        `Email: ${formData.email || "N/A"}\n\n` +
-        `Message:\n${formData.message}`
-      );
+      // ✅ Send message via backend API
+      const response = await fetch(`${BACKEND_URL}/api/send-contact-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullname: formData.fullname,
+          email: formData.email,
+          message: formData.message,
+          toEmail: SUPPORT_EMAIL
+        }),
+      });
 
-      // ✅ ADDED: Include replyTo so HooperFits can reply to the user's email
-      const replyTo = encodeURIComponent(formData.email);
+      const data = await response.json();
 
-      // Open default email client with replyTo set to user's email
-      const mailtoLink = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}&replyTo=${replyTo}`;
-      
-      // Try to open email client
-      const emailWindow = window.open(mailtoLink, "_blank");
-      
-      if (emailWindow) {
-        // If window opened successfully, show success
-        emailWindow.close();
+      if (response.ok) {
+        // Show success message
         setSuccess(true);
         setFormData({ 
           fullname: userProfile?.fullName || userProfile?.username || "", 
@@ -151,22 +163,12 @@ const Contact = () => {
           message: "" 
         });
       } else {
-        // Fallback: try location.href (works on mobile)
-        window.location.href = mailtoLink;
-        
-        // Give it a moment then show success (assuming it worked)
-        setTimeout(() => {
-          setSuccess(true);
-          setFormData({ 
-            fullname: userProfile?.fullName || userProfile?.username || "", 
-            email: userProfile?.email || "", 
-            message: "" 
-          });
-        }, 1000);
+        // Show error message
+        setError(data.message || "Failed to send message. Please try again.");
       }
     } catch (err) {
-      console.error("Error opening email client:", err);
-      setError("Failed to open email client. Please try again.");
+      console.error("Error sending message:", err);
+      setError("Failed to send message. Please check your internet connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -256,9 +258,9 @@ const Contact = () => {
           <div className="success-icon">✅</div>
           <h1 className="success-title">Message Sent Successfully!</h1>
           <p className="success-message">
-             Well Get back at you in 24 - 48 Hours{SUPPORT_EMAIL}. 
+            Your message has been sent to {SUPPORT_EMAIL}. 
             <br />
-            Thank you!
+            We'll get back to you as soon as possible!
           </p>
           <button className="continue-btn" onClick={() => setSuccess(false)}>
             Send Another Message
@@ -487,7 +489,7 @@ const Contact = () => {
                 {submitting ? (
                   <>
                     <div className="loading-spinner"></div>
-                    Opening Email Client...
+                    Sending Message...
                   </>
                 ) : (
                   'Send Message'
@@ -498,7 +500,7 @@ const Contact = () => {
         </div>
       </section>
 
-      <footer className="footer">
+            <footer className="footer">
         <p>
           <a href="/privacy" className="footer-link">Privacy Policy</a> | 
           <a href="/terms" className="footer-link">Terms and Conditions</a>
