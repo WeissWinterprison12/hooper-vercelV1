@@ -426,7 +426,7 @@ const BuyerDashboard = () => {
           <li><a className="active" href="#">📊 Dashboard</a></li>
           <li><a href="/buyer_orders">📦 Orders</a></li>
           <li><a href="/checkout">🛒 Cart</a></li>
-          <li><a href="#" onClick={() => setShowMessageModal(true)}>💬 Messages</a></li>
+          <li><a href="/buyer_messages">💬 Messages</a></li>
           <li><a href="/buyer_home">🏠 Home</a></li>
           <br /><br /><br />
           <li><a href="#" onClick={handleLogout}>🚪 Logout</a></li>

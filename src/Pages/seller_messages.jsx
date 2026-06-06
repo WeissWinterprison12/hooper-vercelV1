@@ -1,4 +1,4 @@
-// seller_messages.jsx - UPDATED: MongoDB Backend + Same profile modal as seller dashboard
+// seller_messages.jsx - UPDATED: Same loading screen as seller_orders
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -22,7 +22,7 @@ const SellerMessages = () => {
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
-  // Profile Modal State (SAME AS SELLER DASHBOARD)
+  // Profile Modal State
   const fileInputRef = useRef(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -74,9 +74,7 @@ const SellerMessages = () => {
     navigate("/login");
   };
 
-  // =====================================================
-  // ✅ FETCH PROFILE FROM MONGODB
-  // =====================================================
+  // FETCH PROFILE
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
@@ -105,13 +103,10 @@ const SellerMessages = () => {
     }
   };
 
-  // =====================================================
-  // ✅ FETCH MESSAGES FROM MONGODB
-  // =====================================================
+  // FETCH MESSAGES
   const fetchMessages = async (id) => {
     try {
       setLoadingMessages(true);
-      // Fetch messages for this seller
       const response = await fetch(`${BACKEND_URL}/api/messages/seller/${id}`);
       const result = await response.json();
       
@@ -130,9 +125,7 @@ const SellerMessages = () => {
     }
   };
 
-  // =====================================================
-  // ✅ PROFILE FUNCTIONS (SAME AS SELLER DASHBOARD)
-  // =====================================================
+  // PROFILE FUNCTIONS
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     console.log("📁 File selected:", file);
@@ -149,9 +142,6 @@ const SellerMessages = () => {
       reader.onload = (event) => {
         setPreviewImage(event.target.result);
       };
-      reader.onerror = (error) => {
-        console.error("❌ FileReader error:", error);
-      };
       reader.readAsDataURL(file);
     }
   }, []);
@@ -163,13 +153,11 @@ const SellerMessages = () => {
     }
   }, []);
 
-  // --- HANDLE IMAGE ERROR ---
   const handleAvatarError = useCallback((e) => {
     e.target.onerror = null;
     e.target.src = defaultAvatar;
   }, []);
 
-  // --- CANCEL PROFILE EDIT ---
   const handleCancelProfileModal = useCallback(() => {
     setShowProfileModal(false);
     setSelectedFile(null);
@@ -177,7 +165,6 @@ const SellerMessages = () => {
     setEditedName(adminProfile.name);
   }, [adminProfile.name]);
 
-  // --- SAVE PROFILE (SAME AS SELLER DASHBOARD) ---
   const handleSaveProfile = useCallback(async () => {
     if (!sellerId) {
       alert("No user ID found. Please login again.");
@@ -196,7 +183,6 @@ const SellerMessages = () => {
     try {
       setUploading(true);
       
-      // Step 1: Save the name first
       const response = await fetch(`${BACKEND_URL}/api/users/${sellerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -211,7 +197,6 @@ const SellerMessages = () => {
       const result = await response.json();
       console.log("📡 Name saved:", result);
 
-      // Step 2: Upload image if selected
       if (selectedFile) {
         const imageFormData = new FormData();
         imageFormData.append("profile_image", selectedFile);
@@ -223,15 +208,10 @@ const SellerMessages = () => {
 
         if (!imageResponse.ok) {
           console.log("⚠️ Image upload failed, but name was saved");
-        } else {
-          const imageResult = await imageResponse.json();
-          console.log("📡 Image saved:", imageResult);
         }
       }
       
-      // Step 3: Refresh profile data
       await fetchProfile(sellerId);
-      
       alert("Profile updated successfully!");
       
     } catch (err) {
@@ -245,15 +225,7 @@ const SellerMessages = () => {
     }
   }, [sellerId, editedName, adminProfile.name, selectedFile, fetchProfile]);
 
-  const handleNameChange = useCallback((e) => {
-    setEditedName(e.target.value);
-  }, []);
-
-  // =====================================================
-  // ✅ HELPER FUNCTIONS
-  // =====================================================
-  
-  // --- Format date for display ---
+  // HELPER FUNCTIONS
   const formatDate = (timestamp) => {
     if (!timestamp) return 'Just now';
     
@@ -271,21 +243,17 @@ const SellerMessages = () => {
     return `${diffInDays}d ago`;
   };
 
-  // --- Check if message is unread ---
   const isMessageUnread = (message) => {
     return !message.is_read || message.status === 'unread';
   };
 
-  // --- Display avatar ---
   const getDisplayAvatar = useCallback(() => {
     return previewImage || adminProfile.avatar || defaultAvatar;
   }, [previewImage, adminProfile.avatar]);
 
-  // --- Mark message as read ---
   const handleMessageClick = async (message) => {
     console.log('💬 Message clicked:', message);
     
-    // Mark as read
     try {
       await fetch(`${BACKEND_URL}/api/messages/${message._id}/read`, {
         method: "PUT",
@@ -293,7 +261,6 @@ const SellerMessages = () => {
         body: JSON.stringify({ seller_id: sellerId })
       });
       
-      // Refresh messages
       await fetchMessages(sellerId);
     } catch (error) {
       console.error('Error marking message as read:', error);
@@ -303,29 +270,21 @@ const SellerMessages = () => {
   };
 
   // =====================================================
-  // ✅ LOADING SCREEN
+  // ✅ UPDATED LOADING SCREEN (SAME AS seller_orders.jsx)
   // =====================================================
   if (loading || !sellerId) {
     return (
-      <div style={{
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '100vh', 
-        background: '#000', 
-        color: '#fff'
-      }}>
-        <div>⏳ Loading messages...</div>
+      <div className="seller-messages-app" style={{display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#000', color: '#fff'}}>
+        <div>⏳ Loading your messages...</div>
       </div>
     );
   }
 
-  // Count unread messages
   const unreadCount = messages.filter(m => isMessageUnread(m)).length;
 
   return (
     <div className="seller-messages-app">
-      {/* PROFILE MODAL (EXACTLY SAME AS SELLER DASHBOARD) */}
+      {/* PROFILE MODAL */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfileModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -336,25 +295,14 @@ const SellerMessages = () => {
                 <img 
                   src={previewImage || adminProfile.avatar} 
                   alt="Preview" 
-                  style={{
-                    width: '100%', 
-                    height: '100%', 
-                    borderRadius: '50%', 
-                    objectFit: 'cover'
-                  }} 
+                  style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} 
                   onError={handleAvatarError}
                 />
               ) : (
                 <div className="question-mark-avatar">?</div>
               )}
               
-              <input 
-                ref={fileInputRef} 
-                type="file" 
-                accept="image/*" 
-                onChange={handleFileSelect} 
-                style={{ display: 'none' }} 
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
             </div>
 
             <h2 className="modal-title">Update Profile</h2>
@@ -362,29 +310,13 @@ const SellerMessages = () => {
             
             <div className="profile-name-input-container">
               <label className="profile-label">Profile Name</label>
-              <input 
-                type="text" 
-                value={editedName} 
-                onChange={handleNameChange}
-                className="profile-name-input"
-                placeholder="Enter your name"
-                autoComplete="off"
-              />
+              <input type="text" value={editedName} onChange={(e) => setEditedName(e.target.value)} className="profile-name-input" placeholder="Enter your name" autoComplete="off" />
             </div>
 
-            <button 
-              className="get-image-btn" 
-              onClick={handleSaveProfile}
-              disabled={uploading}
-              type="button"
-            >
+            <button className="get-image-btn" onClick={handleSaveProfile} disabled={uploading}>
               {uploading ? "⏳ Saving..." : "💾 Save Changes"}
             </button>
-            <button 
-              className="cancel-btn" 
-              onClick={handleCancelProfileModal}
-              type="button"
-            >
+            <button className="cancel-btn" onClick={handleCancelProfileModal}>
               ❌ Cancel
             </button>
           </div>
@@ -394,17 +326,9 @@ const SellerMessages = () => {
       {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
-          <div 
-            className="profile-avatar" 
-            onClick={() => setShowProfileModal(true)}
-            title="Click to edit profile"
-          >
+          <div className="profile-avatar" onClick={() => setShowProfileModal(true)} title="Click to edit profile">
             {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
-              <img 
-                src={getDisplayAvatar()} 
-                alt="Profile"
-                onError={handleAvatarError}
-              />
+              <img src={getDisplayAvatar()} alt="Profile" onError={handleAvatarError} />
             ) : (
               <div className="question-mark-avatar">?</div>
             )}
@@ -422,12 +346,7 @@ const SellerMessages = () => {
         </ul>
 
         <div className="sidebar-logo">
-          <img 
-            src={logo} 
-            alt="Hoopers Fits" 
-            onClick={() => navigate("/seller_dashboard")} 
-            style={{cursor: 'pointer'}} 
-          />
+          <img src={logo} alt="Hoopers Fits" onClick={() => navigate("/seller_dashboard")} style={{cursor: 'pointer'}} />
         </div>
       </div>
 
@@ -436,14 +355,7 @@ const SellerMessages = () => {
         <div className="top-bar">
           <h1>💬 Messages ({messages.length})</h1>
           {unreadCount > 0 && (
-            <span style={{
-              background: '#dc3545',
-              color: '#fff',
-              padding: '5px 12px',
-              borderRadius: '20px',
-              fontSize: '12px',
-              marginLeft: '10px'
-            }}>
+            <span style={{background: '#dc3545', color: '#fff', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', marginLeft: '10px'}}>
               {unreadCount} Unread
             </span>
           )}
@@ -462,7 +374,7 @@ const SellerMessages = () => {
             <div className="no-messages">
               <div>📭</div>
               <h3>No messages yet</h3>
-              <p>Messages from customers will appear here when they contact you.</p>
+              <p>Messages from customers will appear here.</p>
             </div>
           ) : (
             <div className="messages-table">
@@ -480,14 +392,9 @@ const SellerMessages = () => {
                   onClick={() => handleMessageClick(message)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <div className="sender">
-                    {message.fullname || message.sender_username || message.name || `User #${message.sender_id}`}
-                  </div>
+                  <div className="sender">{message.fullname || message.sender_username || message.name || `User #${message.sender_id}`}</div>
                   <div className="subject" title={message.message}>
-                    {message.message?.length > 50 
-                      ? `${message.message.substring(0, 50)}...` 
-                      : message.message || 'No message'
-                    }
+                    {message.message?.length > 50 ? `${message.message.substring(0, 50)}...` : message.message || 'No message'}
                   </div>
                   <div className="date">{formatDate(message.createdAt || message.created_at)}</div>
                   <div className={`status ${isMessageUnread(message) ? 'unread' : 'read'}`}>
@@ -513,11 +420,8 @@ const SellerMessages = () => {
                 <p><strong>📅 Date:</strong> {new Date(selectedMessage.createdAt || selectedMessage.created_at).toLocaleString()}</p>
               </div>
               <div className="message-actions">
-                <button className="reply-btn" onClick={() => {
-                  alert("Reply功能开发中... Reply feature coming soon!");
-                }}>💬 Reply</button>
-                <button className="delete-btn" onClick={() => {                  alert("Delete functionality coming soon!");
-                }}>🗑️ Delete</button>
+                <button className="reply-btn" onClick={() => alert("Reply feature coming soon!")}>💬 Reply</button>
+                <button className="delete-btn" onClick={() => alert("Delete feature coming soon!")}>🗑️ Delete</button>
               </div>
             </div>
           </div>

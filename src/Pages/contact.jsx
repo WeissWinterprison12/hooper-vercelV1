@@ -1,4 +1,4 @@
-// Contact.jsx - FIXED: With page title
+// Contact.jsx - UPDATED: Opens email client to send message
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -12,6 +12,9 @@ import defaultAvatar from "../Images/Man.png";
 import "../components/contact.css";
 
 const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
+
+// Email address to send messages to
+const SUPPORT_EMAIL = "HooperFits2@gmail.com";
 
 const Contact = () => {
   const { user, logout } = useAuth();
@@ -107,27 +110,37 @@ const Contact = () => {
     navigate('/checkout');
   };
 
+  // ✅ UPDATED: Opens default email client with pre-filled message
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setError("");
-    
+
+    // Validate message
+    if (!formData.message.trim()) {
+      setError("Please enter a message");
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const response = await fetch(`${BACKEND_URL}/api/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          sender_id: user.id,
-          receiver_id: 1
-        }),
-      });
+      // Create email subject and body
+      const subject = encodeURIComponent(`Contact from ${formData.fullname || "Customer"}`);
+      const body = encodeURIComponent(
+        `Name: ${formData.fullname || "N/A"}\n` +
+        `Email: ${formData.email || "N/A"}\n\n` +
+        `Message:\n${formData.message}`
+      );
+
+      // Open default email client
+      const mailtoLink = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
       
-      const result = await response.json();
+      // Try to open email client
+      const emailWindow = window.open(mailtoLink, "_blank");
       
-      if (result.success || result._id) {
+      if (emailWindow) {
+        // If window opened successfully, show success
+        emailWindow.close();
         setSuccess(true);
         setFormData({ 
           fullname: userProfile?.fullName || userProfile?.username || "", 
@@ -135,10 +148,22 @@ const Contact = () => {
           message: "" 
         });
       } else {
-        setError(result.error || result.message || "Failed to send message");
+        // Fallback: try location.href (works on mobile)
+        window.location.href = mailtoLink;
+        
+        // Give it a moment then show success (assuming it worked)
+        setTimeout(() => {
+          setSuccess(true);
+          setFormData({ 
+            fullname: userProfile?.fullName || userProfile?.username || "", 
+            email: userProfile?.email || "", 
+            message: "" 
+          });
+        }, 1000);
       }
     } catch (err) {
-      setError("Failed to send message. Please try again.");
+      console.error("Error opening email client:", err);
+      setError("Failed to open email client. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -226,7 +251,9 @@ const Contact = () => {
           <div className="success-icon">✅</div>
           <h1 className="success-title">Message Sent Successfully!</h1>
           <p className="success-message">
-            Thank you for reaching out! We'll get back to you within 24-48 hours.
+            Your default email app has opened with a pre-filled message to {SUPPORT_EMAIL}. 
+            <br />
+            Please send the email to complete your inquiry.
           </p>
           <button className="continue-btn" onClick={() => setSuccess(false)}>
             Send Another Message
@@ -299,7 +326,6 @@ const Contact = () => {
         <nav className="nav">
           <a href="/buyer_home">Home</a>
           <a href="/buyer_shop">Shop</a>
-          <a href="#">New Fits</a>
           <a href="/contact" className="active">Contact Us</a>
         </nav>
         <div className="search-bar">
@@ -375,7 +401,7 @@ const Contact = () => {
                       }}
                       title="Click to message us on Facebook"
                     >
-                      support@hoopersfits.ph
+                      HooperFits2@gmail.com
                     </span>
                   </p>
                 </div>
@@ -384,7 +410,7 @@ const Contact = () => {
                 <div className="contact-icon">📱</div>
                 <div className="contact-text">
                   <h3>Phone</h3>
-                  <p>(+63) 939 601 4810</p>
+                  <p>(+63) 965 168 8931</p>
                 </div>
               </div>
               <div className="contact-item">
@@ -456,7 +482,7 @@ const Contact = () => {
                 {submitting ? (
                   <>
                     <div className="loading-spinner"></div>
-                    Sending Message...
+                    Opening Email Client...
                   </>
                 ) : (
                   'Send Message'
