@@ -1,4 +1,4 @@
-// seller_dashboard.jsx - UPDATED: MongoDB + Area Chart
+// seller_dashboard.jsx - UPDATED: Added Animated Loading Screen
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -13,12 +13,10 @@ const SellerDashboard = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
   
-  // Auth & Data State
   const [sellerId, setSellerId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Dashboard Data
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
@@ -28,7 +26,6 @@ const SellerDashboard = () => {
   const [totalOrdersCount, setTotalOrdersCount] = useState(0);
   const [monthlyData, setMonthlyData] = useState([]);
 
-  // Profile Modal State
   const fileInputRef = useRef(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -43,7 +40,11 @@ const SellerDashboard = () => {
     avatar: defaultAvatar
   });
 
-  // --- AUTH CHECK ---
+
+  useEffect(() => {
+      document.title = "Dashboard - Hooper Fits";
+    }, []);
+
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
@@ -275,7 +276,7 @@ const SellerDashboard = () => {
       setSelectedFile(null);
       setPreviewImage(null);
     }
-  }, [sellerId, editedName, profile, selectedFile, fetchProfile]);
+  }, [sellerId, editedName, profile, selectedFile]);
 
   const handleNameChange = useCallback((e) => {
     setEditedName(e.target.value);
@@ -307,12 +308,11 @@ const SellerDashboard = () => {
     navigate("/seller_orders");
   };
 
-  if (loading) {
+  // ✅ UPDATED LOADING SCREEN (SAME AS seller_product.jsx)
+  if (loading || !sellerId) {
     return (
-      <div className="seller-dashboard-app">
-        <div className="loading-container">
-          Loading Dashboard...
-        </div>
+      <div className="seller-dashboard-app" style={{display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#000', color: '#fff'}}>
+        <div>⏳ Loading your dashboard...</div>
       </div>
     );
   }
@@ -465,7 +465,7 @@ const SellerDashboard = () => {
               </div>
             </div>
 
-            {/* 📊 AREA CHART - Different from Line Chart */}
+                        {/* 📊 AREA CHART - Different from Line Chart */}
             <div className="activity">
               <h4>📈 Monthly Revenue (Area Chart)</h4>
               {monthlyData.length > 0 ? (
@@ -495,7 +495,7 @@ const SellerDashboard = () => {
                       stroke="#6f42c1" 
                       strokeWidth={3}
                       fillOpacity={1}
-                                            fill="url(#colorRevenue)" 
+                      fill="url(#colorRevenue)" 
                     />
                   </AreaChart>
                 </ResponsiveContainer>

@@ -1,5 +1,5 @@
-// buyer_orders.jsx - UPDATED: With Retry Cancel After Rejection
-import React, { useState, useEffect } from "react";
+// buyer_orders.jsx - UPDATED: Added Profile Editing
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import logo from "../Images/HoopersFits.png";
@@ -12,6 +12,7 @@ const BuyerOrders = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
   
+  const [buyerId, setBuyerId] = useState(null); // Added to track ID for profile updates
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
@@ -23,6 +24,14 @@ const BuyerOrders = () => {
   const [otherReason, setOtherReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+
+  // --- NEW: Profile Edit States ---
+  const fileInputRef = useRef(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [editedName, setEditedName] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     document.title = "My Orders - Hooper Fits";
@@ -45,6 +54,9 @@ const BuyerOrders = () => {
           navigate("/login");
           return;
         }
+
+        // Set buyer ID for API calls
+        setBuyerId(session.id);
 
         await fetchProfile(session.id);
         await fetchOrders(session.id);
@@ -71,7 +83,7 @@ const BuyerOrders = () => {
         if (data.profile_image.startsWith("http")) {
           avatarUrl = data.profile_image;
         } else {
-          avatarUrl = `https://hooper-renderv1-4.onrender.com${data.profile_image}`;
+          avatarUrl = `${BACKEND_URL}${data.profile_image}`;
         }
       }
           
@@ -80,6 +92,9 @@ const BuyerOrders = () => {
         username: data.username || "",
         avatar: avatarUrl
       });
+      
+      // Pre-fill the edit name field
+      setEditedName(data.fullName || data.username || "");
       
     } catch (err) {
       console.error("❌ Error fetching profile:", err);
@@ -113,6 +128,126 @@ const BuyerOrders = () => {
     navigate("/login");
   };
 
+  // --- Profile Handlers ---
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files[0];
+    console.log("📁 File selected:", file);
+    
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image too large! Please select an image under 2MB.");
+        return;
+      }
+      
+      setSelectedFile(file);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPreviewImage(event.target.result);
+      };
+      reader.onerror = (error) => {
+        console.error("❌ FileReader error:", error);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const openFileExplorer = useCallback(() => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  }, []);
+
+  const handleCancelProfile = useCallback(() => {
+    setShowProfileModal(false);
+    setSelectedFile(null);
+    setPreviewImage(null);
+    // Reset edited name to current profile name
+    setEditedName(userProfile?.fullName || userProfile?.username || "");
+  }, [userProfile]);
+
+  const handleAvatarError = useCallback((e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
+  }, []);
+
+  const handleSaveProfile = useCallback(async () => {
+    if (!buyerId) {
+      alert("No user ID found. Please login again.");
+      return;
+    }
+
+    const newName = editedName && editedName.trim() ? editedName.trim() : userProfile?.fullName || userProfile?.username;
+
+    if (!newName) {
+      alert("Please enter a name.");
+      return;
+    }
+
+    console.log("📡 Saving profile...", { buyerId, newName });
+
+    try {
+      setUploading(true);
+      
+      // Step 1: Save the name first
+      const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fullName: newName
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || "Failed to update name");
+      }
+      
+      const result = await response.json();
+      console.log("📡 Name saved:", result);
+
+      // Step 2: Upload image if selected
+      if (selectedFile) {
+        const imageFormData = new FormData();
+        imageFormData.append("profile_image", selectedFile);
+
+        const imageResponse = await fetch(`${BACKEND_URL}/api/users/${buyerId}/image`, {
+          method: "PUT",
+          body: imageFormData
+        });
+
+        if (!imageResponse.ok) {
+          console.log("⚠️ Image upload failed, but name was saved");
+        } else {
+          const imageResult = await imageResponse.json();
+          console.log("📡 Image saved:", imageResult);
+        }
+      }
+      
+      // Step 3: Refresh profile data
+      await fetchProfile(buyerId);
+      
+      alert("Profile updated successfully!");
+      
+    } catch (err) {
+      console.error("❌ Save error:", err);
+      alert(`Failed to update profile: ${err.message}`);
+    } finally {
+      setUploading(false);
+      setShowProfileModal(false);
+      setSelectedFile(null);
+      setPreviewImage(null);
+    }
+  }, [buyerId, editedName, userProfile, selectedFile]); // Added fetchProfile dependency needs to be stable or inline
+
+  const handleNameChange = useCallback((e) => {
+    setEditedName(e.target.value);
+  }, []);
+
+  // --- Order Handlers ---
   const handleShowCancelModal = (order) => {
     setSelectedOrder(order);
     setShowCancelModal(true);
@@ -169,7 +304,7 @@ const BuyerOrders = () => {
         await fetchOrders(session.id);
         
         setShowReasonModal(false);
-        setSelectedReason("");
+                setSelectedReason("");
         setOtherReason("");
         setSelectedOrder(null);
       } else {
@@ -192,7 +327,19 @@ const BuyerOrders = () => {
   };
 
   const getDisplayAvatar = () => {
-    return userProfile?.avatar || defaultAvatar;
+    // Check for preview first, then profile avatar, then default
+    return previewImage || userProfile?.avatar || defaultAvatar;
+  };
+
+  const getStatusDisplay = (status) => {
+    switch(status) {
+      case 'pending': return { text: 'Pending', color: '#ffd700' };
+      case 'delivered': return { text: 'Delivered', color: '#ff9800' };
+      case 'completed': return { text: 'Completed', color: '#90EE90' };
+      case 'cancelled': return { text: 'Cancelled', color: '#ff6b6b' };
+      case 'cancellation_requested': return { text: 'Cancellation Requested', color: '#FFA500' };
+      default: return { text: status || 'Unknown', color: '#87CEEB' };
+    }
   };
 
   if (loading) {
@@ -219,33 +366,95 @@ const BuyerOrders = () => {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }}></div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
 
-  // Helper to get status display
-  const getStatusDisplay = (status) => {
-    switch(status) {
-      case 'pending': return { text: 'Pending', color: '#ffd700' };
-      case 'delivered': return { text: 'Delivered', color: '#ff9800' };
-      case 'completed': return { text: 'Completed', color: '#90EE90' };
-      case 'cancelled': return { text: 'Cancelled', color: '#ff6b6b' };
-      case 'cancellation_requested': return { text: 'Cancellation Requested', color: '#FFA500' };
-      default: return { text: status || 'Unknown', color: '#87CEEB' };
-    }
-  };
-
   return (
     <div className="buyer-dashboard-app">
 
+      {/* PROFILE MODAL */}
+      {showProfileModal && (
+        <div className="profile-modal" onClick={handleCancelProfile}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-modal" onClick={handleCancelProfile} type="button">×</button>
+            
+            <div className="modal-image-upload" onClick={openFileExplorer}>
+              {(previewImage || userProfile?.avatar) ? (
+                <img 
+                  src={previewImage || userProfile?.avatar} 
+                  alt="Preview" 
+                  style={{
+                    width: '100%', 
+                    height: '100%', 
+                    borderRadius: '50%', 
+                    objectFit: 'cover'
+                  }} 
+                  onError={handleAvatarError}
+                />
+              ) : (
+                <div className="question-mark-avatar">?</div>
+              )}
+              
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+                style={{ display: 'none' }} 
+              />
+            </div>
+            
+            <h2 className="modal-title">Update Profile</h2>
+            <p className="modal-subtitle">Click avatar to change profile image</p>
+            
+            <input 
+              type="text" 
+              value={editedName} 
+              onChange={handleNameChange} 
+              className="profile-name-input"
+              placeholder="Enter your display name" 
+              autoComplete="off" 
+            />
+
+            <button 
+              className="get-image-btn" 
+              onClick={handleSaveProfile} 
+              type="button"
+              disabled={uploading}
+            >
+              {uploading ? "⏳ Saving..." : "💾 Save Changes"}
+            </button>
+            <button 
+              className="cancel-btn" 
+              onClick={handleCancelProfile} 
+              type="button"
+            >
+              ❌ Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="sidebar">
         <div className="admin-profile">
-          <div className="profile-avatar">
+          <div 
+            className="profile-avatar" 
+            onClick={() => setShowProfileModal(true)}
+            title="Click to edit profile"
+          >
             {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
-              <img src={getDisplayAvatar()} alt="Profile" onError={(e) => { 
-                e.target.style.display = 'none'; 
-                e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>'; 
-              }}/>
+              <img 
+                src={getDisplayAvatar()} 
+                alt="Profile" 
+                onError={handleAvatarError}
+              />
             ) : (
               <div className="question-mark-avatar">?</div>
             )}
@@ -474,7 +683,6 @@ const BuyerOrders = () => {
         </div>
       )}
 
-      {/* MESSAGE MODAL */}
       {showMessageModal && (
         <div className="message-modal" onClick={() => setShowMessageModal(false)}>
           <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>

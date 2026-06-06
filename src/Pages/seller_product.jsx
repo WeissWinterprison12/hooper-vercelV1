@@ -1,4 +1,3 @@
-// seller_product.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -15,32 +14,27 @@ const SellerProduct = () => {
   const [sellerId, setSellerId] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Profile State
   const [profile, setProfile] = useState({
     fullName: "",
     username: "",
     avatar: defaultAvatar
   });
   
-  // Products State
   const [products, setProducts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Modals
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   
-  // Profile Modal State
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [editedName, setEditedName] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  // Product forms
   const [newProduct, setNewProduct] = useState({ product_name: '', description: '', category: '', price: '', stock: '' });
   const [newProductPrice, setNewProductPrice] = useState('0.00');
   const [newProductPriceDisplay, setNewProductPriceDisplay] = useState('0.00');
@@ -53,12 +47,14 @@ const SellerProduct = () => {
   const [editProductPreview, setEditProductPreview] = useState(null);
   const [editProductHasImage, setEditProductHasImage] = useState(false);
   
-  // Notifications
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
 
-  // ✅ SAME AUTH AS SELLER_DASHBOARD
+  useEffect(() => {
+    document.title = "Products - Hooper Fits";
+  }, []);
+
   useEffect(() => {
     const initialize = async () => {
       try {

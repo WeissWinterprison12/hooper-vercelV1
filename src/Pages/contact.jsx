@@ -28,7 +28,6 @@ const Contact = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ SET PAGE TITLE
   useEffect(() => {
     document.title = "Contact Us - Hooper Fits";
   }, []);

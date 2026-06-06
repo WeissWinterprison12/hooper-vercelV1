@@ -1,4 +1,4 @@
-// buyer_dashboard.jsx - UPDATED: Same profile modal as seller_dashboard.jsx
+// buyer_dashboard.jsx - UPDATED: Same loading as buyer_orders.jsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -300,18 +300,37 @@ const BuyerDashboard = () => {
     return profile.username || "@user";
   };
 
-  // --- LOADING SCREEN (SAME AS SELLER) ---
+  // === UPDATED LOADING SCREEN (SAME AS BUYER_ORDERS) ===
   if (loading) {
     return (
-      <div className="buyer-dashboard-app">
-        <div className="loading-container">
-          <span style={{
-            color: '#333',
-            fontSize: '18px',
-            fontWeight: '500',
-            fontFamily: 'Poppins, sans-serif'
-          }}>Loading Dashboard...</span>
-        </div>
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: '#fff',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '15px',
+        zIndex: 9999
+      }}>
+        <span style={{ color: '#333', fontSize: '18px', fontWeight: '500' }}>Loading Dashboard...</span>
+        <div style={{
+          width: '30px',
+          height: '30px',
+          border: '4px solid #f3f3f3',
+          borderTop: '4px solid #dc3545',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -453,6 +472,9 @@ const BuyerDashboard = () => {
           </div>
 
           <div className="right-content">
+            // buyer_dashboard.jsx - Continued from line 477
+// ... (Previous code from lines 1-476)
+
             <div className="small-cards">
               <div className="small-card" onClick={() => setShowMessageModal(true)}>
                 <h3>💬</h3><p>Need Help? Message Us</p>
@@ -476,7 +498,7 @@ const BuyerDashboard = () => {
                       fontSize={12}
                       tickFormatter={(value) => `₱${value.toLocaleString()}`}
                     />
-                                        <Tooltip 
+                    <Tooltip 
                       formatter={(value) => [`₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, 'Spending']}
                       labelStyle={{ color: '#333' }}
                       contentStyle={{ borderRadius: '8px', border: '1px solid #ddd' }}
@@ -581,7 +603,7 @@ const BuyerDashboard = () => {
         </div>
       </div>
 
-      {/* MESSAGE MODAL (SAME AS SELLER) */}
+      {/* MESSAGE MODAL (SAME AS BUYER_ORDERS) */}
       {showMessageModal && (
         <div className="message-modal" onClick={() => setShowMessageModal(false)}>
           <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>

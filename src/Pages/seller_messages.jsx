@@ -30,9 +30,10 @@ const SellerMessages = () => {
   const [editedName, setEditedName] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  // =====================================================
-  // ✅ AUTH CHECK
-  // =====================================================
+  useEffect(() => {
+    document.title = "Messages - Hooper Fits";
+  }, []);
+  
   useEffect(() => {
     const initialize = async () => {
       try {

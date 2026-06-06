@@ -1,4 +1,4 @@
-// login.jsx - FIXED: Use Express + MongoDB Backend
+// login.jsx
 import React, { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -12,8 +12,11 @@ const Login = () => {
   const navigate = useNavigate();
   const loginBoxRef = useRef(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [usernameError, setUsernameError] = useState("");
+  
+  // Changed label Error
+  const [identifierError, setIdentifierError] = useState(""); 
   const [passwordError, setPasswordError] = useState("");
+  
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState("");
   const [resetErrors, setResetErrors] = useState({});
@@ -59,9 +62,6 @@ const Login = () => {
     return `${secs} second${secs !== 1 ? "s" : ""}`;
   };
 
-  // =====================================================
-  // 🔥 FIXED handleLogin - Express + MongoDB Backend
-  // =====================================================
   const handleLogin = async (e) => {
     e.preventDefault();
     
@@ -69,32 +69,30 @@ const Login = () => {
       return;
     }
 
-    // 🔥 CHANGE 1: Use email instead of username
-    const email = e.target.username.value.trim();
+    // 🔥 CHANGE: Use loginInput instead of email variable
+    const loginInput = e.target.username.value.trim();
     const password = e.target.password.value;
 
-    if (!email || !password) {
-      setUsernameError("Please enter email");
+    if (!loginInput || !password) {
+      setIdentifierError("Please enter email or username");
       setPasswordError("Please enter password");
       return;
     }
 
-    setUsernameError("");
+    setIdentifierError("");
     setPasswordError("");
 
     try {
-      // ✅ FIXED: Use Production URL instead of localhost
       const response = await fetch("https://hooper-renderv1-4.onrender.com/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // 🔥 CHANGE 3: Send email + password
-        body: JSON.stringify({ email, password })
+        // Send loginInput as 'email' to match backend expectation
+        body: JSON.stringify({ email: loginInput, password })
       });
 
       const data = await response.json();
       console.log("🔍 Login response:", data);
 
-      // Check for lockout (if backend returns it)
       if (data.status === "locked") {
         setIsLockedOut(true);
         setLockoutRemaining(data.remaining_seconds);
@@ -102,13 +100,10 @@ const Login = () => {
         return;
       }
 
-      // 🔥 CHANGE 4: New success check - use response.ok
       if (response.ok) {
-        // ✅ Extract user data from new response structure
         const dbRole = data.user.role || "buyer";
         
-        // ✅ Convert to standard roles
-        let role = "buyer"; // Default to buyer
+        let role = "buyer"; 
         
         if (dbRole === "admin" || dbRole === "seller") {
           role = "seller";
@@ -119,28 +114,23 @@ const Login = () => {
 
         console.log("🔍 Setting session:", { id: userId, role: role, token: token });
 
-        // ✅ Create session with token
         const session = { 
           id: userId, 
           role: role,
           token: token
         };
 
-        // Clear old sessions
         localStorage.removeItem("buyer_session");
         localStorage.removeItem("seller_session");
 
-        // ✅ Set correct session - FIXED SYNTAX HERE
         if (role === "seller") {
           localStorage.setItem("seller_session", JSON.stringify(session));
         } else {
           localStorage.setItem("buyer_session", JSON.stringify(session));
         }
 
-        // Update AuthContext FIRST
         login(session);
 
-        // THEN navigate
         if (role === "seller") {
           navigate("/seller_dashboard", { replace: true });
         } else {
@@ -148,7 +138,6 @@ const Login = () => {
         }
 
       } else {
-        // Handle error - backend returns { message: "..." }
         setPasswordError(data.message || "Login failed");
       }
     } catch (error) {
@@ -205,10 +194,10 @@ const Login = () => {
     if (Object.keys(newErrors).length > 0) return;
 
     try {
-      // ✅ FIXED: Use Production URL instead of localhost
       const response = await fetch("https://hooper-renderv1-4.onrender.com/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Backend now handles username or email here too
         body: JSON.stringify({ 
           email: username, 
           security_question: securityQuestion,
@@ -240,6 +229,11 @@ const Login = () => {
     setResetSuccess("");
     setResetErrors({});
   };
+
+  // login.jsx
+// ... (Continuing from previous parts)
+// Part 1: Logic (handleLogin, handlePasswordReset, etc - Already provided above)
+// Part 2: goRegister and Return with JSX
 
   const goRegister = () => {
     if (loginBoxRef.current) {
@@ -445,16 +439,17 @@ const Login = () => {
                 </div>
 
                 <form className="form-scroll" onSubmit={handleLogin}>
+                  {/* 🔥 CHANGED: Label and Input Type */}
                   <div className="form-group">
-                    <label>Email</label>
+                    <label>Email or Username</label>
                     <input
                       name="username"
-                      type="email"
+                      type="text"
                       required
-                      className={usernameError ? "error" : ""}
+                      className={identifierError ? "error" : ""}
                       disabled={isLockedOut}
                     />
-                    {usernameError && <div className="error-text">{usernameError}</div>}
+                    {identifierError && <div className="error-text">{identifierError}</div>}
                   </div>
 
                   <div className="form-group">
@@ -469,7 +464,7 @@ const Login = () => {
                     {passwordError && <div className="error-text">{passwordError}</div>}
                   </div>
 
-                                    {isLockedOut && lockoutMessage && (
+                  {isLockedOut && lockoutMessage && (
                     <div className="lockout-text">
                       🔒 {lockoutMessage}<br />
                       ⏱️ Please wait: {formatTime(lockoutRemaining)}
@@ -498,10 +493,10 @@ const Login = () => {
 
                 <form className="form-scroll" onSubmit={handlePasswordReset}>
                   <div className="form-group">
-                    <label>Email</label>
+                    <label>Email or Username</label>
                     <input
                       name="username"
-                      type="email"
+                      type="text"
                       required
                     />
                   </div>

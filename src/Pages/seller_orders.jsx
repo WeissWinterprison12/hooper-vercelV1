@@ -1,4 +1,3 @@
-// seller_orders.jsx - UPDATED: Same profile modal as seller_dashboard.jsx
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -22,17 +21,18 @@ const SellerOrders = () => {
   const [cancelAction, setCancelAction] = useState(null);
   const [updating, setUpdating] = useState(false);
 
-  // Profile modal refs (SAME AS SELLER_DASHBOARD)
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [editedName, setEditedName] = useState("");
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [uploading, setUploading] = useState(false); // ADDED: uploading state
+  const [uploading, setUploading] = useState(false);
 
-  // =====================================================
-  // ✅ AUTH CHECK
-  // =====================================================
+
+  useEffect(() => {
+    document.title = "Orders - Hooper Fits";
+  }, []);
+
   useEffect(() => {
     const initialize = async () => {
       try {
@@ -73,9 +73,6 @@ const SellerOrders = () => {
     navigate("/login");
   };
 
-  // =====================================================
-  // ✅ FETCH PROFILE FROM MONGODB
-  // =====================================================
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
@@ -104,9 +101,6 @@ const SellerOrders = () => {
     }
   };
 
-  // =====================================================
-  // ✅ FETCH ORDERS FROM MONGODB
-  // =====================================================
   const fetchOrders = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/orders/seller/${id}`);
@@ -125,9 +119,6 @@ const SellerOrders = () => {
     }
   };
 
-  // =====================================================
-  // ✅ PROFILE FUNCTIONS (SAME AS SELLER_DASHBOARD)
-  // =====================================================
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     console.log("📁 File selected:", file);
@@ -158,13 +149,11 @@ const SellerOrders = () => {
     }
   }, []);
 
-  // --- HANDLE IMAGE ERROR (SAME AS SELLER_DASHBOARD) ---
   const handleAvatarError = useCallback((e) => {
     e.target.onerror = null;
     e.target.src = defaultAvatar;
   }, []);
 
-  // --- CANCEL PROFILE EDIT (SAME AS SELLER_DASHBOARD) ---
   const handleCancelProfileModal = useCallback(() => {
     setShowProfileModal(false);
     setSelectedFile(null);
@@ -172,7 +161,6 @@ const SellerOrders = () => {
     setEditedName(adminProfile.name);
   }, [adminProfile.name]);
 
-  // --- SAVE PROFILE (SAME AS SELLER_DASHBOARD - WITH UPLOADING STATE) ---
   const handleSaveProfile = useCallback(async () => {
     if (!sellerId) {
       alert("No user ID found. Please login again.");
@@ -191,7 +179,6 @@ const SellerOrders = () => {
     try {
       setUploading(true);
       
-      // Step 1: Save the name first
       const response = await fetch(`${BACKEND_URL}/api/users/${sellerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -206,7 +193,6 @@ const SellerOrders = () => {
       const result = await response.json();
       console.log("📡 Name saved:", result);
 
-      // Step 2: Upload image if selected
       if (selectedFile) {
         const imageFormData = new FormData();
         imageFormData.append("profile_image", selectedFile);
@@ -224,7 +210,6 @@ const SellerOrders = () => {
         }
       }
       
-      // Step 3: Refresh profile data
       await fetchProfile(sellerId);
       
       alert("Profile updated successfully!");
@@ -240,9 +225,6 @@ const SellerOrders = () => {
     }
   }, [sellerId, editedName, adminProfile.name, selectedFile, fetchProfile]);
 
-  // =====================================================
-  // ✅ HANDLE ORDER ACTIONS
-  // =====================================================
   const handleShowActionModal = (order, action) => {
     setSelectedOrder(order);
     setCancelAction(action);
@@ -314,9 +296,6 @@ const SellerOrders = () => {
     }
   };
 
-  // =====================================================
-  // ✅ HELPER FUNCTIONS
-  // =====================================================
   const getStatusClass = (status) => {
     switch(status?.toLowerCase()) {
       case 'shipped_out': return 'status-shipped';
@@ -343,35 +322,22 @@ const SellerOrders = () => {
     }
   };
 
-  // --- DISPLAY AVATAR (SAME AS SELLER_DASHBOARD) ---
   const getDisplayAvatar = useCallback(() => {
     return previewImage || adminProfile.avatar || defaultAvatar;
   }, [previewImage, adminProfile.avatar]);
 
-  // =====================================================
-  // ✅ LOADING SCREEN
-  // =====================================================
   if (loading || !sellerId) {
     return (
-      <div style={{
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '100vh', 
-        background: '#000', 
-        color: '#fff'
-      }}>
-        <div>⏳ Loading orders...</div>
+      <div className="seller-orders-app" style={{display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#000', color: '#fff'}}>
+        <div>⏳ Loading your orders...</div>
       </div>
     );
   }
 
-  // Count orders with cancellation requests
   const cancellationRequests = orders.filter(o => o.status === 'cancellation_requested').length;
 
   return (
     <div className="seller-orders-app">
-      {/* PROFILE MODAL (EXACTLY SAME AS SELLER_DASHBOARD) */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfileModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -437,7 +403,6 @@ const SellerOrders = () => {
         </div>
       )}
 
-      {/* ACTION MODAL */}
       {showReasonModal && (
         <div className="profile-modal" onClick={handleCloseReasonModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -515,7 +480,6 @@ const SellerOrders = () => {
         </div>
       )}
 
-      {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
           <div 
@@ -539,7 +503,7 @@ const SellerOrders = () => {
         <ul>
           <li><a href="/seller_dashboard">📊 Dashboard</a></li>
           <li><a href="/seller_product">📦 Products</a></li>
-          <li><a className="active" href="/seller_orders">📋 Orders</a></li>
+                    <li><a className="active" href="/seller_orders">📋 Orders</a></li>
           <li><a href="/seller_messages">💬 Messages</a></li>
           <br /><br /><br />
           <li><a href="#" onClick={handleLogout}>🚪 Logout</a></li>
@@ -555,7 +519,6 @@ const SellerOrders = () => {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
       <div className="main">
         <div className="top-bar">
           <h1>📋 Orders</h1>
@@ -617,7 +580,7 @@ const SellerOrders = () => {
                     <td>
                       {hoveredOrder === order._id && (
                         <div style={{ display: 'flex', gap: '5px' }}>
-                          {/* Cancellation Request Handler */}
+                          
                           {order.status === 'cancellation_requested' && (
                             <>
                               <button
@@ -652,8 +615,7 @@ const SellerOrders = () => {
                               </button>
                             </>
                           )}
-                          
-                          {/* Pending Orders - Ship Out & Complete */}
+                        
                           {order.status === 'pending' && (
                             <>
                               <button
