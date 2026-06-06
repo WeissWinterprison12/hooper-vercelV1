@@ -174,47 +174,57 @@ const SellerMessages = () => {
   }, [sellerId, editedName, adminProfile.name, selectedFile]);
 
   // SEND MESSAGE FUNCTION
-  const handleSendMessage = useCallback(async (e) => {
-    e.preventDefault();
-    if (!newMessage.message.trim()) { alert("Please enter a message"); return; }
-    if (!sellerId || !replyToBuyer) { alert("Session expired. Please login again."); return; }
+const handleSendMessage = useCallback(async (e) => {
+  e.preventDefault();
+  
+  console.log("🔍 DEBUG - Sending with:", {
+    newMessage: newMessage.message,
+    sellerId: sellerId,
+    replyToBuyer: replyToBuyer,
+    replyToBuyerType: typeof replyToBuyer
+  });
+  
+  if (!newMessage.message.trim()) { 
+    alert("Please enter a message"); 
+    return; 
+  }
+  
+  if (!sellerId || !replyToBuyer) { 
+    alert("Session expired. Please login again."); 
+    return; 
+  }
 
-    console.log("📤 Sending message:", {
-      sender_id: sellerId,
-      receiver_id: replyToBuyer,
-      message: newMessage.message.trim()
+  try {
+    setSending(true);
+    const response = await fetch(`${BACKEND_URL}/api/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sender_id: sellerId,
+        receiver_id: replyToBuyer, 
+        message: newMessage.message.trim()
+      })
     });
 
-    try {
-      setSending(true);
-      const response = await fetch(`${BACKEND_URL}/api/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sender_id: sellerId,
-          receiver_id: replyToBuyer,
-          message: newMessage.message.trim()
-        })
-      });
+    const result = await response.json();
+    console.log("📡 Response:", response.status, result);
 
-      const result = await response.json();
-      console.log("📡 Response:", result);
-
-      if (!response.ok) throw new Error(result.message || "Failed to send message");
-      
-      alert("Message sent successfully!");
-      setNewMessage({ message: "" });
-      setReplyToBuyer(null);
-      setShowSendModal(false);
-    } catch (error) {
-      console.error("❌ Error sending message:", error);
-      alert("Failed to send message. Please try again.");
-    } finally {
-      setSending(false);
+    if (!response.ok) {
+      throw new Error(result.message || `Server error: ${response.status}`);
     }
-  }, [newMessage, sellerId, replyToBuyer]);
+    
+    alert("Message sent successfully!");
+    setNewMessage({ message: "" });
+    setReplyToBuyer(null);
+    setShowSendModal(false);
+  } catch (error) {
+    console.error("❌ Error sending message:", error);
+    alert(`Failed to send message: ${error.message}`);
+  } finally {
+    setSending(false);
+  }
+}, [newMessage, sellerId, replyToBuyer]);
 
-  // DELETE MESSAGE FUNCTION
   const handleDeleteMessage = useCallback(async () => {
     if (!selectedMessage || !selectedMessage._id) { alert("No message selected."); return; }
     if (!window.confirm("Are you sure you want to delete this message?")) return;
@@ -233,33 +243,38 @@ const SellerMessages = () => {
     }
   }, [selectedMessage, sellerId]);
 
-  // OPEN REPLY MODAL - FIXED to handle object format
-  const handleOpenReply = useCallback(() => {
-    if (!selectedMessage) return;
-    
-    // Handle both string and object formats for sender_id
-    let buyerId;
-    if (typeof selectedMessage.sender_id === 'object' && selectedMessage.sender_id !== null) {
-      buyerId = selectedMessage.sender_id._id || selectedMessage.sender_id.id || selectedMessage.sender_id;
-    } else {
-      buyerId = selectedMessage.sender_id;
-    }
-    
-    if (!buyerId) { 
-      console.log("❌ No buyer ID found:", selectedMessage);
-      alert("Cannot reply: No buyer ID found."); 
-      return; 
-    }
-    
-    console.log("📤 Replying to buyer:", buyerId);
-    
-    setReplyToBuyer(buyerId);
-    setNewMessage({ message: "" });
-    setShowSendModal(true);
-    setSelectedMessage(null);
-  }, [selectedMessage]);
+const handleOpenReply = useCallback(() => {
+  if (!selectedMessage) return;
+  
+  let buyerId;
+  
+  if (typeof selectedMessage.sender_id === 'object' && selectedMessage.sender_id !== null) {
+    buyerId = selectedMessage.sender_id._id?.toString() || 
+              selectedMessage.sender_id.id?.toString() || 
+              String(selectedMessage.sender_id);
+  } else if (typeof selectedMessage.sender_id === 'string') {
+    buyerId = selectedMessage.sender_id;
+  } else {
+    buyerId = String(selectedMessage.sender_id);
+  }
+  
+  buyerId = buyerId.trim();
+  
+  console.log("🔍 DEBUG - Buyer ID extracted:", buyerId, "Type:", typeof buyerId);
+  
+  if (!buyerId || buyerId === 'undefined' || buyerId === 'null') { 
+    console.log("❌ No buyer ID found:", selectedMessage);
+    alert("Cannot reply: No buyer ID found."); 
+    return; 
+  }
+  
+  setReplyToBuyer(buyerId);
+  setNewMessage({ message: "" });
+  setShowSendModal(true);
+  setSelectedMessage(null);
+}, [selectedMessage]);
 
-  // HELPER FUNCTIONS
+
   const formatDate = (timestamp) => {
     if (!timestamp) return 'Just now';
     const date = new Date(timestamp);
