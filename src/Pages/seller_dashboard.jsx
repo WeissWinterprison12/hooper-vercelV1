@@ -404,7 +404,6 @@ const SellerDashboard = () => {
         <ul>
           <li><a className="active" href="#">📊 Dashboard</a></li>
           <li><a href="/seller_product">📦 Products</a></li>
-          <li><a href="/seller_settings">⚙️ Settings</a></li>
           <li><a href="/seller_orders">📋 Orders</a></li>
           <li><a href="#" onClick={() => setShowMessageModal(true)}>💬 Messages</a></li>
           <br /><br /><br />

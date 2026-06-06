@@ -300,7 +300,6 @@ const BuyerHome = () => {
         <nav className="nav">
           <a href="/buyer_home" className="active">Home</a>
           <a href="/buyer_shop">Shop</a>
-          <a href="#">New Fits</a>
           <a href="/contact">Contact Us</a>
         </nav>
 

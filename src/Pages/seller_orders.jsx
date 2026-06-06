@@ -1,4 +1,4 @@
-// seller_orders.jsx - UPDATED: MongoDB + Ship Out + Deliver + Complete
+// seller_orders.jsx - UPDATED: Same profile modal as seller_dashboard.jsx
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
@@ -19,15 +19,16 @@ const SellerOrders = () => {
   const [hoveredOrder, setHoveredOrder] = useState(null);
   const [showReasonModal, setShowReasonModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [cancelAction, setCancelAction] = useState(null); // 'approve', 'reject', 'shipOut', 'deliver', 'complete'
+  const [cancelAction, setCancelAction] = useState(null);
   const [updating, setUpdating] = useState(false);
 
-  // Profile modal refs
+  // Profile modal refs (SAME AS SELLER_DASHBOARD)
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [editedName, setEditedName] = useState("");
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [uploading, setUploading] = useState(false); // ADDED: uploading state
 
   // =====================================================
   // ✅ AUTH CHECK
@@ -125,15 +126,26 @@ const SellerOrders = () => {
   };
 
   // =====================================================
-  // ✅ PROFILE FUNCTIONS
+  // ✅ PROFILE FUNCTIONS (SAME AS SELLER_DASHBOARD)
   // =====================================================
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
+    console.log("📁 File selected:", file);
+    
     if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image too large! Please select an image under 2MB.");
+        return;
+      }
+      
       setSelectedFile(file);
+
       const reader = new FileReader();
       reader.onload = (event) => {
         setPreviewImage(event.target.result);
+      };
+      reader.onerror = (error) => {
+        console.error("❌ FileReader error:", error);
       };
       reader.readAsDataURL(file);
     }
@@ -146,6 +158,13 @@ const SellerOrders = () => {
     }
   }, []);
 
+  // --- HANDLE IMAGE ERROR (SAME AS SELLER_DASHBOARD) ---
+  const handleAvatarError = useCallback((e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
+  }, []);
+
+  // --- CANCEL PROFILE EDIT (SAME AS SELLER_DASHBOARD) ---
   const handleCancelProfileModal = useCallback(() => {
     setShowProfileModal(false);
     setSelectedFile(null);
@@ -153,50 +172,73 @@ const SellerOrders = () => {
     setEditedName(adminProfile.name);
   }, [adminProfile.name]);
 
+  // --- SAVE PROFILE (SAME AS SELLER_DASHBOARD - WITH UPLOADING STATE) ---
   const handleSaveProfile = useCallback(async () => {
     if (!sellerId) {
-      alert("No user ID found");
+      alert("No user ID found. Please login again.");
       return;
     }
 
     const newName = editedName && editedName.trim() ? editedName.trim() : adminProfile.name;
 
     if (!newName) {
-      alert("Please enter a name");
+      alert("Please enter a name.");
       return;
     }
 
+    console.log("📡 Saving profile...", { sellerId, newName });
+
     try {
+      setUploading(true);
+      
+      // Step 1: Save the name first
       const response = await fetch(`${BACKEND_URL}/api/users/${sellerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fullName: newName })
       });
 
-      const result = await response.json();
-
-      if (result.success) {
-        if (selectedFile) {
-          const formData = new FormData();
-          formData.append("profile_image", selectedFile);
-
-          await fetch(`${BACKEND_URL}/api/users/${sellerId}/image`, {
-            method: "PUT",
-            body: formData
-          });
-        }
-        
-        await fetchProfile(sellerId);
-        setShowProfileModal(false);
-        setSelectedFile(null);
-        setPreviewImage(null);
-        alert("✅ Profile updated!");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || "Failed to update name");
       }
-    } catch (error) {
-      console.error("❌ Save error:", error);
-      alert("Failed to update profile");
+      
+      const result = await response.json();
+      console.log("📡 Name saved:", result);
+
+      // Step 2: Upload image if selected
+      if (selectedFile) {
+        const imageFormData = new FormData();
+        imageFormData.append("profile_image", selectedFile);
+
+        const imageResponse = await fetch(`${BACKEND_URL}/api/users/${sellerId}/image`, {
+          method: "PUT",
+          body: imageFormData
+        });
+
+        if (!imageResponse.ok) {
+          console.log("⚠️ Image upload failed, but name was saved");
+        } else {
+          const imageResult = await imageResponse.json();
+          console.log("📡 Image saved:", imageResult);
+        }
+      }
+      
+      // Step 3: Refresh profile data
+      await fetchProfile(sellerId);
+      
+      alert("Profile updated successfully!");
+      
+    } catch (err) {
+      console.error("❌ Save error:", err);
+      alert(`Failed to update profile: ${err.message}`);
+    } finally {
+      setUploading(false);
+      setShowProfileModal(false);
+      setSelectedFile(null);
+      setPreviewImage(null);
     }
-  }, [sellerId, editedName, adminProfile.name, selectedFile]);
+  }, [sellerId, editedName, adminProfile.name, selectedFile, fetchProfile]);
 
   // =====================================================
   // ✅ HANDLE ORDER ACTIONS
@@ -301,7 +343,10 @@ const SellerOrders = () => {
     }
   };
 
-  const displayAvatar = previewImage || adminProfile.avatar || defaultAvatar;
+  // --- DISPLAY AVATAR (SAME AS SELLER_DASHBOARD) ---
+  const getDisplayAvatar = useCallback(() => {
+    return previewImage || adminProfile.avatar || defaultAvatar;
+  }, [previewImage, adminProfile.avatar]);
 
   // =====================================================
   // ✅ LOADING SCREEN
@@ -326,22 +371,36 @@ const SellerOrders = () => {
 
   return (
     <div className="seller-orders-app">
-      {/* PROFILE MODAL */}
+      {/* PROFILE MODAL (EXACTLY SAME AS SELLER_DASHBOARD) */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfileModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-modal" onClick={handleCancelProfileModal}>×</button>
+            <button className="close-modal" onClick={handleCancelProfileModal} type="button">×</button>
             
             <div className="modal-image-upload" onClick={openFileExplorer}>
-              {displayAvatar ? (
-                <img src={displayAvatar} alt="Profile" style={{width: '100%', height: '100%', borderRadius: '16px', objectFit: 'cover'}} />
+              {(previewImage || adminProfile.avatar) ? (
+                <img 
+                  src={previewImage || adminProfile.avatar} 
+                  alt="Preview" 
+                  style={{
+                    width: '100%', 
+                    height: '100%', 
+                    borderRadius: '50%', 
+                    objectFit: 'cover'
+                  }} 
+                  onError={handleAvatarError}
+                />
               ) : (
-                <div className="no-image-placeholder">
-                  <span>👤</span>
-                  <p>Click to add profile image</p>
-                </div>
+                <div className="question-mark-avatar">?</div>
               )}
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+              
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+                style={{ display: 'none' }} 
+              />
             </div>
 
             <h2 className="modal-title">Update Profile</h2>
@@ -349,11 +408,31 @@ const SellerOrders = () => {
             
             <div className="profile-name-input-container">
               <label className="profile-label">Profile Name</label>
-              <input type="text" value={editedName} onChange={(e) => setEditedName(e.target.value)} className="profile-name-input" placeholder="Enter your name" autoComplete="off" />
+              <input 
+                type="text" 
+                value={editedName} 
+                onChange={(e) => setEditedName(e.target.value)} 
+                className="profile-name-input" 
+                placeholder="Enter your name" 
+                autoComplete="off" 
+              />
             </div>
 
-            <button className="get-image-btn" onClick={handleSaveProfile}>💾 Save Changes</button>
-            <button className="cancel-btn" onClick={handleCancelProfileModal}>Cancel</button>
+            <button 
+              className="get-image-btn" 
+              onClick={handleSaveProfile}
+              disabled={uploading}
+              type="button"
+            >
+              {uploading ? "⏳ Saving..." : "💾 Save Changes"}
+            </button>
+            <button 
+              className="cancel-btn" 
+              onClick={handleCancelProfileModal}
+              type="button"
+            >
+              ❌ Cancel
+            </button>
           </div>
         </div>
       )}
@@ -415,7 +494,7 @@ const SellerOrders = () => {
                   background: cancelAction === 'approve' ? '#dc3545' : 
                            cancelAction === 'reject' ? '#28a745' :
                            cancelAction === 'shipOut' ? '#6f42c1' :
-                           cancelAction === 'deliver' ? '#ff9800' :
+                                                      cancelAction === 'deliver' ? '#ff9800' :
                            cancelAction === 'complete' ? '#28a745' : '#6f42c1'
                 }}
               >
@@ -439,12 +518,17 @@ const SellerOrders = () => {
       {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
-          <div className="profile-avatar" onClick={() => setShowProfileModal(true)}>
-            {displayAvatar && displayAvatar !== defaultAvatar ? (
-              <img src={displayAvatar} alt="Profile" onError={(e) => { 
-                e.target.style.display = 'none'; 
-                e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>'; 
-              }} />
+          <div 
+            className="profile-avatar" 
+            onClick={() => setShowProfileModal(true)}
+            title="Click to edit profile"
+          >
+            {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
+              <img 
+                src={getDisplayAvatar()} 
+                alt="Profile" 
+                onError={handleAvatarError}
+              />
             ) : (
               <div className="question-mark-avatar">?</div>
             )}
@@ -455,7 +539,6 @@ const SellerOrders = () => {
         <ul>
           <li><a href="/seller_dashboard">📊 Dashboard</a></li>
           <li><a href="/seller_product">📦 Products</a></li>
-          <li><a href="/seller_settings">⚙️ Settings</a></li>
           <li><a className="active" href="/seller_orders">📋 Orders</a></li>
           <li><a href="/seller_messages">💬 Messages</a></li>
           <br /><br /><br />
@@ -463,7 +546,12 @@ const SellerOrders = () => {
         </ul>
 
         <div className="sidebar-logo">
-          <img src={logo} alt="Hoopers Fits" onClick={() => navigate("/seller_dashboard")} style={{cursor: 'pointer'}} />
+          <img 
+            src={logo} 
+            alt="Hoopers Fits" 
+            onClick={() => navigate("/seller_dashboard")} 
+            style={{cursor: 'pointer'}} 
+          />
         </div>
       </div>
 
@@ -499,7 +587,7 @@ const SellerOrders = () => {
               <thead>
                 <tr>
                   <th>Order ID</th>
-                                    <th>Date</th>
+                  <th>Date</th>
                   <th>Product</th>
                   <th>Buyer</th>
                   <th>Total</th>

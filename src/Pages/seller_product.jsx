@@ -684,7 +684,6 @@ const SellerProduct = () => {
         <ul>
           <li><a href="/seller_dashboard">📊 Dashboard</a></li>
           <li><a href="/seller_product" className="active">📦 Products</a></li>
-          <li><a href="/seller_settings">⚙️ Settings</a></li>
           <li><a href="/seller_orders">📋 Orders</a></li>
           <li><a href="/seller_messages">💬 Messages</a></li>
           <br /><br /><br />

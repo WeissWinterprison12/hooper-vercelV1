@@ -1,100 +1,258 @@
+// seller_messages.jsx - UPDATED: MongoDB Backend + Same profile modal as seller dashboard
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import '../components/seller_messages.css';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
+import logo from "../Images/HoopersFits.png";
+import defaultAvatar from "../Images/Man.png";
+import "../components/seller_messages.css";
+
+const BACKEND_URL = "https://hooper-renderv1-4.onrender.com";
 
 const SellerMessages = () => {
-  const [currentUser, setCurrentUser] = useState(null);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  
+  const [sellerId, setSellerId] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [adminProfile, setAdminProfile] = useState({
     name: "",
     avatar: null
   });
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewImage, setPreviewImage] = useState(null);
-  const [editedName, setEditedName] = useState("");
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
+  // Profile Modal State (SAME AS SELLER DASHBOARD)
   const fileInputRef = useRef(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [editedName, setEditedName] = useState("");
+  const [uploading, setUploading] = useState(false);
 
-  // ✅ FIXED: Fetch real messages from API
-  const fetchMessages = useCallback(async () => {
+  // =====================================================
+  // ✅ AUTH CHECK
+  // =====================================================
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const sessionStr = localStorage.getItem("seller_session");
+        
+        if (!sessionStr) {
+          handleLogout();
+          return;
+        }
+
+        const session = JSON.parse(sessionStr);
+
+        if (session.role !== "seller" && session.role !== "admin") {
+          handleLogout();
+          return;
+        }
+
+        setSellerId(session.id);
+        
+        await fetchProfile(session.id);
+        await fetchMessages(session.id);
+        
+      } catch (error) {
+        console.error("❌ Auth error:", error);
+        handleLogout();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initialize();
+  }, [navigate]);
+
+  const handleLogout = () => {
+    console.log("🚪 Logging out...");
+    logout();
+    localStorage.removeItem("seller_session");
+    navigate("/login");
+  };
+
+  // =====================================================
+  // ✅ FETCH PROFILE FROM MONGODB
+  // =====================================================
+  const fetchProfile = async (id) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
+      const data = await response.json();
+
+      console.log("📡 Profile data:", data);
+
+      let avatarUrl = defaultAvatar;
+      
+      if (data.profile_image) {
+        if (data.profile_image.startsWith("http")) {
+          avatarUrl = data.profile_image;
+        } else {
+          avatarUrl = `${BACKEND_URL}${data.profile_image}`;
+        }
+      }
+        
+      setAdminProfile({
+        name: data.fullName || data.username || "Seller",
+        avatar: avatarUrl
+      });
+      setEditedName(data.fullName || data.username || "Seller");
+      
+    } catch (err) {
+      console.error("❌ Error fetching profile:", err);
+    }
+  };
+
+  // =====================================================
+  // ✅ FETCH MESSAGES FROM MONGODB
+  // =====================================================
+  const fetchMessages = async (id) => {
     try {
       setLoadingMessages(true);
-      const response = await fetch("http://localhost/hooper_fits_api/get_seller_messages.php");
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
+      // Fetch messages for this seller
+      const response = await fetch(`${BACKEND_URL}/api/messages/seller/${id}`);
       const result = await response.json();
       
-      if (result.success) {
-        console.log('✅ Fetched messages:', result.messages);
+      console.log("📡 Messages data:", result);
+      
+      if (result.success && result.messages) {
         setMessages(result.messages || []);
       } else {
-        console.error('❌ No messages found:', result.error);
         setMessages([]);
       }
     } catch (error) {
-      console.error('💥 Error fetching messages:', error);
+      console.error("❌ Error fetching messages:", error);
       setMessages([]);
     } finally {
       setLoadingMessages(false);
     }
+  };
+
+  // =====================================================
+  // ✅ PROFILE FUNCTIONS (SAME AS SELLER DASHBOARD)
+  // =====================================================
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files[0];
+    console.log("📁 File selected:", file);
+    
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Image too large! Please select an image under 2MB.");
+        return;
+      }
+      
+      setSelectedFile(file);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPreviewImage(event.target.result);
+      };
+      reader.onerror = (error) => {
+        console.error("❌ FileReader error:", error);
+      };
+      reader.readAsDataURL(file);
+    }
   }, []);
 
-  // ✅ FIXED: Robust authentication with session verification
-  useEffect(() => {
-    const checkAuth = async () => {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      console.log('🔍 Auth check - LocalStorage user:', user);
+  const openFileExplorer = useCallback(() => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  }, []);
+
+  // --- HANDLE IMAGE ERROR ---
+  const handleAvatarError = useCallback((e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
+  }, []);
+
+  // --- CANCEL PROFILE EDIT ---
+  const handleCancelProfileModal = useCallback(() => {
+    setShowProfileModal(false);
+    setSelectedFile(null);
+    setPreviewImage(null);
+    setEditedName(adminProfile.name);
+  }, [adminProfile.name]);
+
+  // --- SAVE PROFILE (SAME AS SELLER DASHBOARD) ---
+  const handleSaveProfile = useCallback(async () => {
+    if (!sellerId) {
+      alert("No user ID found. Please login again.");
+      return;
+    }
+
+    const newName = editedName && editedName.trim() ? editedName.trim() : adminProfile.name;
+
+    if (!newName) {
+      alert("Please enter a name.");
+      return;
+    }
+
+    console.log("📡 Saving profile...", { sellerId, newName });
+
+    try {
+      setUploading(true);
       
-      // Check if user exists and has user_id
-      if (!user || !user.user_id) {
-        console.log('❌ No valid user in localStorage');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-        return;
+      // Step 1: Save the name first
+      const response = await fetch(`${BACKEND_URL}/api/users/${sellerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName: newName })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(errorData.message || "Failed to update name");
       }
       
-      // ✅ Verify user role (seller/admin only)
-      if (user.role !== 'seller' && user.role !== 'admin') {
-        console.log('❌ User is not seller/admin:', user.role);
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-        return;
-      }
-      
-      try {
-        // ✅ Double-check with API session verification
-        const response = await fetch(`http://localhost/hooper_fits_api/verify_session.php?user_id=${user.user_id}`);
-        const data = await response.json();
-        
-        if (!data.valid) {
-          console.log('❌ Session invalid from API:', data.error);
-          localStorage.removeItem('user');
-          window.location.href = '/login';
-          return;
+      const result = await response.json();
+      console.log("📡 Name saved:", result);
+
+      // Step 2: Upload image if selected
+      if (selectedFile) {
+        const imageFormData = new FormData();
+        imageFormData.append("profile_image", selectedFile);
+
+        const imageResponse = await fetch(`${BACKEND_URL}/api/users/${sellerId}/image`, {
+          method: "PUT",
+          body: imageFormData
+        });
+
+        if (!imageResponse.ok) {
+          console.log("⚠️ Image upload failed, but name was saved");
+        } else {
+          const imageResult = await imageResponse.json();
+          console.log("📡 Image saved:", imageResult);
         }
-        
-        console.log('✅ Session valid - User:', data.user);
-        setCurrentUser(user);
-        fetchProfile(user.user_id);
-        fetchMessages();
-      } catch (err) {
-        console.error('❌ Session check failed, using localStorage fallback:', err);
-        // Fallback to localStorage if API fails (offline mode)
-        setCurrentUser(user);
-        fetchProfile(user.user_id);
-        fetchMessages();
       }
-    };
+      
+      // Step 3: Refresh profile data
+      await fetchProfile(sellerId);
+      
+      alert("Profile updated successfully!");
+      
+    } catch (err) {
+      console.error("❌ Save error:", err);
+      alert(`Failed to update profile: ${err.message}`);
+    } finally {
+      setUploading(false);
+      setShowProfileModal(false);
+      setSelectedFile(null);
+      setPreviewImage(null);
+    }
+  }, [sellerId, editedName, adminProfile.name, selectedFile, fetchProfile]);
 
-    checkAuth();
+  const handleNameChange = useCallback((e) => {
+    setEditedName(e.target.value);
   }, []);
 
-  // ✅ Format date for display
+  // =====================================================
+  // ✅ HELPER FUNCTIONS
+  // =====================================================
+  
+  // --- Format date for display ---
   const formatDate = (timestamp) => {
     if (!timestamp) return 'Just now';
     
@@ -112,225 +270,30 @@ const SellerMessages = () => {
     return `${diffInDays}d ago`;
   };
 
-  // ✅ Check if message is unread
+  // --- Check if message is unread ---
   const isMessageUnread = (message) => {
     return !message.is_read || message.status === 'unread';
   };
 
+  // --- Display avatar ---
   const getDisplayAvatar = useCallback(() => {
-    if (previewImage) return previewImage;
-    if (!adminProfile.avatar) return null;
-    
-    if (adminProfile.avatar.startsWith('http')) {
-      return adminProfile.avatar;
-    }
-    
-    const fullUrl = `http://localhost/hooper_fits_api/uploads/profiles/${adminProfile.avatar}`;
-    return fullUrl;
+    return previewImage || adminProfile.avatar || defaultAvatar;
   }, [previewImage, adminProfile.avatar]);
 
-  const fetchProfile = async (userId) => {
-    try {
-      const response = await fetch(`http://localhost/hooper_fits_api/get_profile.php?user_id=${userId}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const text = await response.text();
-      const data = JSON.parse(text);
-      
-      if (data.success) {
-        const avatarFilename = data.profile_image ? data.profile_image.split('/').pop() : null;
-        
-        const profileData = {
-          name: data.name || "",
-          avatar: avatarFilename
-        };
-        
-        setAdminProfile(profileData);
-        setEditedName(data.name || "");
-        
-        const updatedUser = {
-          ...currentUser,
-          name: profileData.name,
-          profile_image: profileData.avatar
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-      }
-    } catch (err) {
-      console.error("Profile error:", err);
-    }
-  };
-
-  const handleFileSelect = useCallback((e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-      setPreviewImage(URL.createObjectURL(file));
-    }
-  }, []);
-
-  const openFileExplorer = useCallback(() => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-      fileInputRef.current.click();
-    }
-  }, []);
-
-  // ✅ FIXED: Proper logout function
-  const logout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('userId');
-    
-    fetch('http://localhost/hooper_fits_api/logout.php', { 
-      method: 'POST',
-      credentials: 'include' 
-    }).catch(err => console.log('Logout API failed:', err));
-    
-    window.location.href = '/login';
-  };
-
-  const uploadImage = async () => {
-    if (!selectedFile || !currentUser) return false;
-
-    const userId = currentUser.user_id || currentUser.id;
-    const formData = new FormData();
-    formData.append("profile_image", selectedFile);
-    formData.append("user_id", userId);
-
-    try {
-      const response = await fetch("http://localhost/hooper_fits_api/update_profile.php", {
-        method: "POST",
-        body: formData
-      });
-      
-      const result = JSON.parse(await response.text());
-
-      if (result.success && result.image) {
-        const filename = result.image.split('/').pop();
-        
-        setAdminProfile(prev => ({
-          ...prev,
-          avatar: filename
-        }));
-
-        const updatedUser = {
-          ...currentUser,
-          profile_image: filename
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-
-        setSelectedFile(null);
-        setPreviewImage(null);
-        return true;
-      } else {
-        alert(`Upload failed: ${result.error || 'Unknown error'}`);
-        return false;
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert("Upload error");
-      return false;
-    }
-  };
-
-  const updateProfileName = async () => {
-    if (!currentUser) return false;
-
-    const userId = currentUser.user_id || currentUser.id;
-
-    try {
-      const response = await fetch("http://localhost/hooper_fits_api/update_profile_name.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          name: editedName.trim()
-        })
-      });
-      
-      const result = await response.json();
-
-      if (result.success) {
-        setAdminProfile(prev => ({ 
-          ...prev, 
-          name: editedName.trim() 
-        }));
-
-        const updatedUser = {
-          ...currentUser,
-          name: editedName.trim()
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-
-        return true;
-      } else {
-        alert(`Name update failed: ${result.error}`);
-        return false;
-      }
-    } catch (error) {
-      console.error('Name update error:', error);
-      alert("Name update error");
-      return false;
-    }
-  };
-
-  const handleSaveProfile = useCallback(async () => {
-    const nameChanged = editedName.trim() !== adminProfile.name.trim();
-    const imageChanged = !!selectedFile;
-
-    if (!nameChanged && !imageChanged) {
-      setShowProfileModal(false);
-      return;
-    }
-
-    let success = true;
-
-    if (nameChanged) {
-      success = await updateProfileName();
-    }
-
-    if (imageChanged && success) {
-      success = await uploadImage();
-    }
-
-    if (success) {
-      setShowProfileModal(false);
-      alert("✅ Profile updated successfully!");
-    }
-  }, [editedName, adminProfile.name, selectedFile, currentUser]);
-
-  const handleCancelProfile = useCallback(() => {
-    setShowProfileModal(false);
-    setSelectedFile(null);
-    setPreviewImage(null);
-    setEditedName(adminProfile.name);
-  }, [adminProfile.name]);
-
-  const handleNameChange = useCallback((e) => {
-    setEditedName(e.target.value);
-  }, []);
-
-  useEffect(() => {
-    setEditedName(adminProfile.name);
-  }, [adminProfile.name]);
-
-  // ✅ FIXED: Mark message as read and show details
+  // --- Mark message as read ---
   const handleMessageClick = async (message) => {
     console.log('💬 Message clicked:', message);
     
     // Mark as read
     try {
-      await fetch("http://localhost/hooper_fits_api/mark_message_read.php", {
-        method: "POST",
+      await fetch(`${BACKEND_URL}/api/messages/${message._id}/read`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message_id: message.id,
-          seller_id: currentUser?.user_id || currentUser?.id
-        })
+        body: JSON.stringify({ seller_id: sellerId })
       });
-      fetchMessages();
+      
+      // Refresh messages
+      await fetchMessages(sellerId);
     } catch (error) {
       console.error('Error marking message as read:', error);
     }
@@ -338,36 +301,59 @@ const SellerMessages = () => {
     setSelectedMessage(message);
   };
 
-  if (!currentUser) {
+  // =====================================================
+  // ✅ LOADING SCREEN
+  // =====================================================
+  if (loading || !sellerId) {
     return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Checking authentication...</p>
+      <div style={{
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh', 
+        background: '#000', 
+        color: '#fff'
+      }}>
+        <div>⏳ Loading messages...</div>
       </div>
     );
   }
 
+  // Count unread messages
+  const unreadCount = messages.filter(m => isMessageUnread(m)).length;
+
   return (
     <div className="seller-messages-app">
-      {/* Profile Modal */}
+      {/* PROFILE MODAL (EXACTLY SAME AS SELLER DASHBOARD) */}
       {showProfileModal && (
-        <div className="profile-modal" onClick={handleCancelProfile}>
+        <div className="profile-modal" onClick={handleCancelProfileModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-modal" onClick={handleCancelProfile}>×</button>
+            <button className="close-modal" onClick={handleCancelProfileModal} type="button">×</button>
             
             <div className="modal-image-upload" onClick={openFileExplorer}>
-              {previewImage ? (
-                <img src={previewImage} alt="Preview" style={{width: '100%', height: '100%', borderRadius: '16px', objectFit: 'cover'}} />
-              ) : getDisplayAvatar() ? (
-                <img src={getDisplayAvatar()} alt="Profile" style={{width: '100%', height: '100%', borderRadius: '16px', objectFit: 'cover'}} />
+              {(previewImage || adminProfile.avatar) ? (
+                <img 
+                  src={previewImage || adminProfile.avatar} 
+                  alt="Preview" 
+                  style={{
+                    width: '100%', 
+                    height: '100%', 
+                    borderRadius: '50%', 
+                    objectFit: 'cover'
+                  }} 
+                  onError={handleAvatarError}
+                />
               ) : (
-                <div className="no-image-placeholder">
-                  <span>👤</span>
-                  <p>Click to add profile image</p>
-                </div>
+                <div className="question-mark-avatar">?</div>
               )}
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
-              {!previewImage && !getDisplayAvatar() && <div className="image-overlay">Click to upload</div>}
+              
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+                style={{ display: 'none' }} 
+              />
             </div>
 
             <h2 className="modal-title">Update Profile</h2>
@@ -381,44 +367,85 @@ const SellerMessages = () => {
                 onChange={handleNameChange}
                 className="profile-name-input"
                 placeholder="Enter your name"
+                autoComplete="off"
               />
             </div>
 
-            <button className="get-image-btn" onClick={handleSaveProfile}>💾 Save Changes</button>
-            <button className="cancel-btn" onClick={handleCancelProfile}>❌ Cancel</button>
+            <button 
+              className="get-image-btn" 
+              onClick={handleSaveProfile}
+              disabled={uploading}
+              type="button"
+            >
+              {uploading ? "⏳ Saving..." : "💾 Save Changes"}
+            </button>
+            <button 
+              className="cancel-btn" 
+              onClick={handleCancelProfileModal}
+              type="button"
+            >
+              ❌ Cancel
+            </button>
           </div>
         </div>
       )}
 
+      {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
-          <div className="profile-avatar" onClick={() => setShowProfileModal(true)}>
-            {getDisplayAvatar() ? (
+          <div 
+            className="profile-avatar" 
+            onClick={() => setShowProfileModal(true)}
+            title="Click to edit profile"
+          >
+            {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
               <img 
-                src={getDisplayAvatar()}
+                src={getDisplayAvatar()} 
                 alt="Profile"
-                style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}}
+                onError={handleAvatarError}
               />
             ) : (
               <div className="question-mark-avatar">?</div>
             )}
           </div>
-          <p className="profile-name">{adminProfile.name || currentUser?.name || "Loading..."}</p>
+          <p className="profile-name">{adminProfile.name || "Set your name"}</p>
         </div>
+        
         <ul>
           <li><a href="/seller_dashboard">📊 Dashboard</a></li>
           <li><a href="/seller_product">📦 Products</a></li>
-          <li><a href="/seller_settings">⚙️ Settings</a></li>
           <li><a href="/seller_orders">📋 Orders</a></li>
           <li><a className="active" href="/seller_messages">💬 Messages</a></li>
           <br /><br /><br />
-          <li><a href="#" onClick={logout}>🚪 Logout</a></li>
+          <li><a href="#" onClick={handleLogout}>🚪 Logout</a></li>
         </ul>
+
+        <div className="sidebar-logo">
+          <img 
+            src={logo} 
+            alt="Hoopers Fits" 
+            onClick={() => navigate("/seller_dashboard")} 
+            style={{cursor: 'pointer'}} 
+          />
+        </div>
       </div>
 
+      {/* MAIN CONTENT */}
       <div className="main">
         <div className="top-bar">
-          <h1>Messages ({messages.length})</h1>
+          <h1>💬 Messages ({messages.length})</h1>
+          {unreadCount > 0 && (
+            <span style={{
+              background: '#dc3545',
+              color: '#fff',
+              padding: '5px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              marginLeft: '10px'
+            }}>
+              {unreadCount} Unread
+            </span>
+          )}
         </div>
 
         <div className="messages-container">
@@ -447,13 +474,13 @@ const SellerMessages = () => {
               
               {messages.map((message) => (
                 <div 
-                  key={message.id} 
+                  key={message._id || message.id} 
                   className={`table-row ${isMessageUnread(message) ? 'unread-row' : ''}`}
                   onClick={() => handleMessageClick(message)}
                   style={{ cursor: 'pointer' }}
                 >
                   <div className="sender">
-                    {message.fullname || message.sender_username || `User #${message.sender_id}`}
+                    {message.fullname || message.sender_username || message.name || `User #${message.sender_id}`}
                   </div>
                   <div className="subject" title={message.message}>
                     {message.message?.length > 50 
@@ -461,7 +488,7 @@ const SellerMessages = () => {
                       : message.message || 'No message'
                     }
                   </div>
-                  <div className="date">{formatDate(message.created_at)}</div>
+                  <div className="date">{formatDate(message.createdAt || message.created_at)}</div>
                   <div className={`status ${isMessageUnread(message) ? 'unread' : 'read'}`}>
                     {isMessageUnread(message) ? 'Unread' : 'Read'}
                   </div>
@@ -480,13 +507,16 @@ const SellerMessages = () => {
                 <button className="close-message" onClick={() => setSelectedMessage(null)}>×</button>
               </div>
               <div className="message-details">
-                <p><strong>👤 From:</strong> {selectedMessage.fullname || selectedMessage.sender_username || `User #${selectedMessage.sender_id}`}</p>
+                <p><strong>👤 From:</strong> {selectedMessage.fullname || selectedMessage.sender_username || selectedMessage.name || `User #${selectedMessage.sender_id}`}</p>
                 <p><strong>📧 Email:</strong> {selectedMessage.email}</p>
-                <p><strong>📅 Date:</strong> {new Date(selectedMessage.created_at).toLocaleString()}</p>
+                <p><strong>📅 Date:</strong> {new Date(selectedMessage.createdAt || selectedMessage.created_at).toLocaleString()}</p>
               </div>
               <div className="message-actions">
-                <button className="reply-btn">💬 Reply</button>
-                <button className="delete-btn">🗑️ Delete</button>
+                <button className="reply-btn" onClick={() => {
+                  alert("Reply功能开发中... Reply feature coming soon!");
+                }}>💬 Reply</button>
+                <button className="delete-btn" onClick={() => {                  alert("Delete functionality coming soon!");
+                }}>🗑️ Delete</button>
               </div>
             </div>
           </div>

@@ -191,7 +191,6 @@ const BuyerShop = () => {
         <nav className="nav">
           <a href="/buyer_home">Home</a>
           <a href="/buyer_shop" className="active">Shop</a>
-          <a href="#">New Fits</a>
           <a href="/contact">Contact Us</a>
         </nav>
         <div className="search-bar">

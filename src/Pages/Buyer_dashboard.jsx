@@ -1,4 +1,4 @@
-// buyer_dashboard.jsx - FIXED for MongoDB Backend (with FormData upload)
+// buyer_dashboard.jsx - UPDATED: Same profile modal as seller_dashboard.jsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -20,8 +20,8 @@ const BuyerDashboard = () => {
   const [totalSpending, setTotalSpending] = useState(0);
   const [monthlyData, setMonthlyData] = useState([]);
   
+  // Profile Modal Refs & State (SAME AS SELLER)
   const fileInputRef = useRef(null);
-  
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
@@ -35,6 +35,7 @@ const BuyerDashboard = () => {
     avatar: defaultAvatar
   });
 
+  // --- AUTH CHECK ---
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
@@ -70,7 +71,7 @@ const BuyerDashboard = () => {
     initializeDashboard();
   }, [navigate]);
 
-  // Fetch Profile from MongoDB
+  // --- FETCH PROFILE FROM MONGODB ---
   const fetchProfile = async (id) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/users/${id}`);
@@ -88,7 +89,7 @@ const BuyerDashboard = () => {
         if (data.profile_image.startsWith("http")) {
           avatarUrl = data.profile_image;
         } else {
-          avatarUrl = `https://hooper-renderv1-4.onrender.com${data.profile_image}`;
+          avatarUrl = `${BACKEND_URL}${data.profile_image}`;
         }
       }
           
@@ -106,7 +107,7 @@ const BuyerDashboard = () => {
     }
   };
 
-  // Fetch Orders from MongoDB & Calculate Monthly Data
+  // --- FETCH ORDERS ---
   const fetchOrders = async (id) => {
     try {
       console.log("📡 Fetching orders for buyer:", id);
@@ -129,12 +130,10 @@ const BuyerDashboard = () => {
         const monthlyMap = {};
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
-        // Initialize all months with 0
         monthNames.forEach((month, index) => {
           monthlyMap[index] = { month, spending: 0 };
         });
         
-        // Aggregate spending by month
         data.orders.forEach(order => {
           if (order.createdAt) {
             const date = new Date(order.createdAt);
@@ -145,7 +144,6 @@ const BuyerDashboard = () => {
           }
         });
         
-        // Convert to array
         const chartData = Object.values(monthlyMap);
         setMonthlyData(chartData);
         
@@ -169,6 +167,7 @@ const BuyerDashboard = () => {
     navigate("/login");
   };
 
+  // --- FILE SELECT (SAME AS SELLER) ---
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     console.log("📁 File selected:", file);
@@ -199,6 +198,7 @@ const BuyerDashboard = () => {
     }
   }, []);
 
+  // --- CANCEL PROFILE EDIT (SAME AS SELLER) ---
   const handleCancelProfile = useCallback(() => {
     setShowProfileModal(false);
     setSelectedFile(null);
@@ -206,6 +206,7 @@ const BuyerDashboard = () => {
     setEditedName(profile.fullName || profile.username || "");
   }, [profile.fullName, profile.username]);
 
+  // --- SAVE PROFILE (SAME AS SELLER - WITH IMAGE UPLOAD) ---
   const handleSaveProfile = useCallback(async () => {
     if (!buyerId) {
       alert("No user ID found. Please login again.");
@@ -224,6 +225,7 @@ const BuyerDashboard = () => {
     try {
       setUploading(true);
       
+      // Step 1: Save the name first
       const response = await fetch(`${BACKEND_URL}/api/users/${buyerId}`, {
         method: "PUT",
         headers: { 
@@ -242,6 +244,7 @@ const BuyerDashboard = () => {
       const result = await response.json();
       console.log("📡 Name saved:", result);
 
+      // Step 2: Upload image if selected (SAME AS SELLER)
       if (selectedFile) {
         const imageFormData = new FormData();
         imageFormData.append("profile_image", selectedFile);
@@ -259,6 +262,7 @@ const BuyerDashboard = () => {
         }
       }
       
+      // Step 3: Refresh profile data
       await fetchProfile(buyerId);
       
       alert("Profile updated successfully!");
@@ -278,6 +282,12 @@ const BuyerDashboard = () => {
     setEditedName(e.target.value);
   }, []);
 
+  // --- HANDLE IMAGE ERROR ---
+  const handleAvatarError = useCallback((e) => {
+    e.target.onerror = null;
+    e.target.src = defaultAvatar;
+  }, []);
+
   const getDisplayAvatar = useCallback(() => {
     return previewImage || profile.avatar || defaultAvatar;
   }, [previewImage, profile.avatar]);
@@ -290,47 +300,25 @@ const BuyerDashboard = () => {
     return profile.username || "@user";
   };
 
+  // --- LOADING SCREEN (SAME AS SELLER) ---
   if (loading) {
     return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: '#fff',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: '15px',
-        zIndex: 9999
-      }}>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-        <span style={{
-          color: '#333',
-          fontSize: '18px',
-          fontWeight: '500',
-          fontFamily: 'Poppins, sans-serif'
-        }}>Loading Dashboard...</span>
-        <div style={{
-          width: '30px',
-          height: '30px',
-          border: '4px solid #f3f3f3',
-          borderTop: '4px solid #dc3545',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }}></div>
+      <div className="buyer-dashboard-app">
+        <div className="loading-container">
+          <span style={{
+            color: '#333',
+            fontSize: '18px',
+            fontWeight: '500',
+            fontFamily: 'Poppins, sans-serif'
+          }}>Loading Dashboard...</span>
+        </div>
       </div>
     );
   }
   
   return (
     <div className="buyer-dashboard-app">
+      {/* PROFILE MODAL (EXACTLY SAME AS SELLER_DASHBOARD) */}
       {showProfileModal && (
         <div className="profile-modal" onClick={handleCancelProfile}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -338,24 +326,41 @@ const BuyerDashboard = () => {
             
             <div className="modal-image-upload" onClick={openFileExplorer}>
               {(previewImage || profile.avatar) ? (
-                <img src={previewImage || profile.avatar} alt="Preview" style={{
-                  width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'
-                }} onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>';
-                }}/>
+                <img 
+                  src={previewImage || profile.avatar} 
+                  alt="Preview" 
+                  style={{
+                    width: '100%', 
+                    height: '100%', 
+                    borderRadius: '50%', 
+                    objectFit: 'cover'
+                  }} 
+                  onError={handleAvatarError}
+                />
               ) : (
                 <div className="question-mark-avatar">?</div>
               )}
               
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+                style={{ display: 'none' }} 
+              />
             </div>
             
             <h2 className="modal-title">Update Profile</h2>
             <p className="modal-subtitle">Click avatar to change profile image</p>
             
-            <input type="text" value={editedName} onChange={handleNameChange} className="profile-name-input"
-              placeholder="Enter your full name" autoComplete="off" />
+            <input 
+              type="text" 
+              value={editedName} 
+              onChange={handleNameChange} 
+              className="profile-name-input"
+              placeholder="Enter your display name" 
+              autoComplete="off" 
+            />
 
             <button 
               className="get-image-btn" 
@@ -365,7 +370,13 @@ const BuyerDashboard = () => {
             >
               {uploading ? "⏳ Saving..." : "💾 Save Changes"}
             </button>
-            <button className="cancel-btn" onClick={handleCancelProfile} type="button">❌ Cancel</button>
+            <button 
+              className="cancel-btn" 
+              onClick={handleCancelProfile} 
+              type="button"
+            >
+              ❌ Cancel
+            </button>
           </div>
         </div>
       )}
@@ -373,12 +384,17 @@ const BuyerDashboard = () => {
       {/* SIDEBAR */}
       <div className="sidebar">
         <div className="admin-profile">
-          <div className="profile-avatar" onClick={() => setShowProfileModal(true)}>
+          <div 
+            className="profile-avatar" 
+            onClick={() => setShowProfileModal(true)}
+            title="Click to edit profile"
+          >
             {getDisplayAvatar() && getDisplayAvatar() !== defaultAvatar ? (
-              <img src={getDisplayAvatar()} alt="Profile" onError={(e) => { 
-                e.target.style.display = 'none'; 
-                e.target.parentNode.innerHTML = '<div class="question-mark-avatar">?</div>'; 
-              }}/>
+              <img 
+                src={getDisplayAvatar()} 
+                alt="Profile" 
+                onError={handleAvatarError}
+              />
             ) : (
               <div className="question-mark-avatar">?</div>
             )}
@@ -392,7 +408,7 @@ const BuyerDashboard = () => {
           <li><a href="/buyer_orders">📦 Orders</a></li>
           <li><a href="/checkout">🛒 Cart</a></li>
           <li><a href="#" onClick={() => setShowMessageModal(true)}>💬 Messages</a></li>
-          <li><a href="#">⚙️ Settings</a></li>
+          <li><a href="/buyer_home">🏠 Home</a></li>
           <br /><br /><br />
           <li><a href="#" onClick={handleLogout}>🚪 Logout</a></li>
         </ul>
@@ -447,7 +463,7 @@ const BuyerDashboard = () => {
               </div>
             </div>
             
-            {/* 📈 SPENDING TREND LINE CHART */}
+            {/* SPENDING TREND LINE CHART */}
             <div className="activity">
               <h4>📈 Monthly Spending Trend</h4>
               {monthlyData.length > 0 ? (
@@ -460,7 +476,7 @@ const BuyerDashboard = () => {
                       fontSize={12}
                       tickFormatter={(value) => `₱${value.toLocaleString()}`}
                     />
-                    <Tooltip 
+                                        <Tooltip 
                       formatter={(value) => [`₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`, 'Spending']}
                       labelStyle={{ color: '#333' }}
                       contentStyle={{ borderRadius: '8px', border: '1px solid #ddd' }}
@@ -483,34 +499,79 @@ const BuyerDashboard = () => {
               )}
             </div>
             
+            {/* RECENT ORDERS TABLE */}
             <div className="orders">
-              <h4>📦 Recent Orders</h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h4>📦 Recent Orders</h4>
+                {orders.length > 5 && (
+                  <button 
+                    onClick={() => navigate('/buyer_orders')}
+                    style={{
+                      background: '#dc3545',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '8px 15px',
+                      borderRadius: '20px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    View All ({orders.length}) →
+                  </button>
+                )}
+              </div>
               <table>
                 <thead>
-                                  <tr><th>Order ID</th><th>Date</th><th>Total</th><th>Payment</th><th>Status</th></tr>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Date</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {orders.length > 0 ? orders.map((order) => (
+                  {orders.length > 0 ? orders.slice(0, 5).map((order) => (
                     <tr key={order._id}>
                       <td>#{order._id?.slice(-6)}</td>
                       <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</td>
-                      <td>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                      <td>
+                        {order.items && order.items.length > 0 
+                          ? order.items.map((item, idx) => (
+                              <span key={idx} style={{ display: 'block', fontSize: '12px' }}>
+                                {item.product_id?.product_name || "Product"} × {item.quantity}
+                              </span>
+                            ))
+                          : 'N/A'}
+                      </td>
+                      <td style={{ fontWeight: '600' }}>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                       <td>{order.payment_method || "COD"}</td>
                       <td>
                         <span style={{
                           padding: '4px 8px',
                           borderRadius: '4px',
-                          fontSize: '12px',
-                          background: order.status === 'pending' ? '#ffd700' : order.status === 'completed' ? '#90EE90' : order.status === 'cancelled' ? '#ff6b6b' : '#87CEEB',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          background: 
+                            order.status === 'pending' ? '#ffd700' : 
+                            order.status === 'completed' ? '#90EE90' : 
+                            order.status === 'cancelled' ? '#ff6b6b' : 
+                            order.status === 'shipped' ? '#87CEEB' : '#ddd',
                           color: '#000'
                         }}>
-                          {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
+                          {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}
                         </span>
                       </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No orders yet</td>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '30px' }}>
+                        <div style={{ fontSize: '40px', marginBottom: '10px' }}>🛒</div>
+                        <p style={{ color: '#666', marginBottom: '5px' }}>No orders yet</p>
+                        <p style={{ color: '#999', fontSize: '12px' }}>Start shopping to see your orders here!</p>
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -520,15 +581,27 @@ const BuyerDashboard = () => {
         </div>
       </div>
 
-      {/* MESSAGE MODAL */}
+      {/* MESSAGE MODAL (SAME AS SELLER) */}
       {showMessageModal && (
         <div className="message-modal" onClick={() => setShowMessageModal(false)}>
           <div className="message-modal-content" onClick={(e) => e.stopPropagation()}>
             <h2 className="message-modal-title">📱 Need Help?</h2>
-            <p className="message-modal-text">Our support team is ready to assist you!</p>
+            <p className="message-modal-text">
+              Our support team is ready to assist you!
+            </p>
             <div className="message-modal-buttons">
-              <button className="message-modal-btn primary" onClick={() => window.open('mailto:support@hoopersfits.ph')}>📧 Email Support</button>
-              <button className="message-modal-btn secondary" onClick={() => setShowMessageModal(false)}>Close</button>
+              <button
+                className="message-modal-btn primary"
+                onClick={() => window.open("mailto:support@hoopersfits.ph")}
+              >
+                📧 Email Support
+              </button>
+              <button
+                className="message-modal-btn secondary"
+                onClick={() => setShowMessageModal(false)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
